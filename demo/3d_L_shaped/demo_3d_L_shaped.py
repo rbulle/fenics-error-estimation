@@ -58,6 +58,7 @@ def main():
         print(df)
 
 def solve(V):
+    mesh = V.mesh()
     u = TrialFunction(V)
     v = TestFunction(V)
 
