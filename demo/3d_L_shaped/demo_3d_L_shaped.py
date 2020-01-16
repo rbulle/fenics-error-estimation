@@ -70,7 +70,7 @@ def solve(V):
     # Exact solution
     x = ufl.SpatialCoordinate(mesh)
 
-    r, theta = cartesian2polar_ufl(x)
+    r, theta = cartesian2polar(x)
 
     u_2d = r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.))
 
@@ -131,13 +131,13 @@ def estimate(u_h):
 
     return eta_h
 
-if __name__ == "__main__":
-    main()
-
-def cartesian2polar_ufl(x):
+def cartesian2polar(x):
     r = ufl.sqrt(x[0]**2 + x[1]**2)
     theta = ufl.mathfunctions.Atan2(x[1], x[0])
     return r, theta
+
+if __name__ == "__main__":
+    main()
 
 def test():
     pass
