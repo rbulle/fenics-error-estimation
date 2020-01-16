@@ -22,16 +22,18 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 20):
+    for i in range(0, 10):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
+        print('V dim = {}'.format(V.dim())
         u_h, err = solve(V)
-
+        print('Exact error = {}'.format(err))
         result['exact_error'] = err
 
         print('Estimating...')
         eta_h = estimate(u_h)
         result['error_bw'] = np.sqrt(eta_h.vector().sum())
+        print('BW = {}'.format(np.sqrt(eta_h.vector().sum())))
         result['hmin'] = mesh.hmin()
         result['hmax'] = mesh.hmax()
         result['num_dofs'] = V.dim()
@@ -70,7 +72,7 @@ def solve(V):
     # Exact solution
     x = ufl.SpatialCoordinate(mesh)
 
-    r, theta = cartesian2polar_ufl(x)
+    r, theta = cartesian2polar(x)
 
     u_2d = r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.))
 
@@ -131,13 +133,13 @@ def estimate(u_h):
 
     return eta_h
 
-if __name__ == "__main__":
-    main()
-
-def cartesian2polar_ufl(x):
+def cartesian2polar(x):
     r = ufl.sqrt(x[0]**2 + x[1]**2)
     theta = ufl.mathfunctions.Atan2(x[1], x[0])
     return r, theta
+
+if __name__ == "__main__":
+    main()
 
 def test():
     pass
