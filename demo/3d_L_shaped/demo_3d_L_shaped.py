@@ -22,10 +22,10 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 10):
+    for i in range(0, 12):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
-        print('V dim = {}'.format(V.dim())
+        print('V dim = {}'.format(V.dim()))
         u_h, err = solve(V)
         print('Exact error = {}'.format(err))
         result['exact_error'] = err
