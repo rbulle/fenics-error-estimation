@@ -22,16 +22,18 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 20):
+    for i in range(0, 10):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
+        print('V dim = {}'.format(V.dim())
         u_h, err = solve(V)
-
+        print('Exact error = {}'.format(err))
         result['exact_error'] = err
 
         print('Estimating...')
         eta_h = estimate(u_h)
         result['error_bw'] = np.sqrt(eta_h.vector().sum())
+        print('BW = {}'.format(np.sqrt(eta_h.vector().sum())))
         result['hmin'] = mesh.hmin()
         result['hmax'] = mesh.hmax()
         result['num_dofs'] = V.dim()
