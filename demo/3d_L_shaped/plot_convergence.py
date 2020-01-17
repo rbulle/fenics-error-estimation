@@ -45,7 +45,7 @@ plt.loglog(df["num_dofs"], df["exact_error"], '-',
 plt.xlabel("Number of dof")
 plt.ylabel("$\eta$")
 
-marker_x, marker_y = marker(df["num_dofs"], [df["error_bw"], df["exact_error"]], 0.3, 0.1)
-annotation.slope_marker((marker_x, marker_y), (-1, 1), invert=True)
+marker_x, marker_y = marker(df["num_dofs"].values, [df["error_bw"].values, df["exact_error"].values], 0.3, 0.05)
+annotation.slope_marker((marker_x, marker_y), (-1, 3), invert=True)
 plt.legend()
 plt.savefig('output/error.pdf')
