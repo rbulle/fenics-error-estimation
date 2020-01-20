@@ -30,13 +30,19 @@ def main():
         print('Exact error = {}'.format(err))
         result['exact_error'] = err
 
-        print('Estimating...')
+        print('Estimating (BW)...')
         eta_h = estimate(u_h)
         result['error_bw'] = np.sqrt(eta_h.vector().sum())
         print('BW = {}'.format(np.sqrt(eta_h.vector().sum())))
         result['hmin'] = mesh.hmin()
         result['hmax'] = mesh.hmax()
         result['num_dofs'] = V.dim()
+
+        print('Estimating (res)...')
+        eta_res = residual_estimate(u_h)
+        result['error_res'] = np.sqrt(eta_res.vector().sum())
+        print('Res = {}'.format(np.sqrt(eta_res.vector().sum()))
+
 
         print('Marking...')
         markers = bank_weiser.maximum(eta_h, 0.2)
@@ -129,6 +135,25 @@ def estimate(u_h):
 
     eta_h = Function(V_e)
     eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx)
+    eta_h.vector()[:] = eta
+
+    return eta_h
+
+def residual_estimate(u_h):
+    mesh = u_h.function_space().mesh()
+
+    f = Expression('3*pi*pi*sin(pi*x[0])*sin(pi*x[1])*sin(pi*x[2])', degree=3)
+    
+    n = FacetNormal(mesh)
+    r = f + div(grad(u_h))
+    J_h = jump(grad(u_h), -n)
+
+    V = FunctionSpace(mesh, "DG", 0)
+    v = TestFunction(V)
+    h = CellDiameter(mesh)
+
+    eta_h = Function(V)
+    eta = assemble(h**2*r**2*v*dx + avg(h)*J_h**2*avg(v)*dS)
     eta_h.vector()[:] = eta
 
     return eta_h
