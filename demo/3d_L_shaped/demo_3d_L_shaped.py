@@ -22,7 +22,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 12):
+    for i in range(0, 16):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -41,7 +41,7 @@ def main():
         print('Estimating (res)...')
         eta_res = residual_estimate(u_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
-        print('Res = {}'.format(np.sqrt(eta_res.vector().sum()))
+        print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
 
 
         print('Marking...')
