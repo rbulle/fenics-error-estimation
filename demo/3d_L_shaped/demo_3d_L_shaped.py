@@ -4,7 +4,7 @@ import numpy as np
 from dolfin import *
 import ufl
 
-import bank_weiser
+import fenics_error_estimation
 
 k = 1
 if k==1:
@@ -28,7 +28,7 @@ def main():
 
     results_bw = []
     print('BW AFEM')
-    for i in range(0, 16):
+    for i in range(0, 5):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -50,7 +50,7 @@ def main():
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
 
         print('Marking...')
-        markers = bank_weiser.maximum(eta_h, 0.2)
+        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.3)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
 
@@ -70,7 +70,7 @@ def main():
         df.to_pickle('output/{}/bank-weiser/results_bw.pkl'.format(path))
         print(df)
 
-    for i in range(0 ,16):
+    for i in range(0 ,5):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -87,17 +87,17 @@ def main():
         result['num_dofs'] = V.dim()
 
         print('Marking...')
-        markers = bank_weiser.maximum(eta_h, 0.2)
+        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.2)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
 
-        with XDMFFile('output/{}/residual/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}/residual/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(mesh)
 
-        with XDMFFile('output/{}/residual/u_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}/residual/u_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(u_h)
 
-        with XDMFFile('output/{}/residual/eta_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}/residual/eta_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(eta_h)
 
         results_bw.append(result)
@@ -157,7 +157,7 @@ def estimate(u_h):
     element_g = FiniteElement('DG', tetrahedron, k)
     V_f = FunctionSpace(mesh, element_f)
 
-    N = bank_weiser.create_interpolation(element_f, element_g)
+    N = fenics_error_estimation.create_interpolation(element_f, element_g)
 
     e = TrialFunction(V_f)
     v = TestFunction(V_f)
@@ -171,7 +171,7 @@ def estimate(u_h):
     L_e = inner(f + div(grad(u_h)), v)*dx + \
           inner(jump(grad(u_h), -n), avg(v))*dS
 
-    e_h = bank_weiser.estimate(a_e, L_e, N, bcs)
+    e_h = fenics_error_estimation.estimate(a_e, L_e, N, bcs)
 
     V_e = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(V_e)
