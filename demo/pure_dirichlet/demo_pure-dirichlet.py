@@ -1,11 +1,17 @@
+## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
+## SPDX-License-Identifier: LGPL-3.0-or-later
 import numpy as np
 
 from dolfin import *
-import bank_weiser
+import fenics_error_estimation
 
-mesh = UnitSquareMesh(120, 120)
+parameters["ghost_mode"] = "shared_facet"
 
-k = 1
+mesh = UnitSquareMesh(16, 16)
+mesh = refine(mesh, redistribute=True)
+mesh = refine(mesh, redistribute=True)
+
+k = 3
 V = FunctionSpace(mesh, "CG", k)
 
 u = TrialFunction(V)
@@ -36,11 +42,12 @@ A, b = assemble_system(a, L, bcs=bcs)
 solver = PETScLUSolver()
 solver.solve(A, u_h.vector(), b)
 
-V_f = FunctionSpace(mesh, "DG", k + 1)
-V_g = FunctionSpace(mesh, "DG", k)
+element_f = FiniteElement("DG", triangle, k + 1)
+element_g = FiniteElement("DG", triangle, k)
 
-N = bank_weiser.create_interpolation(V_f, V_g)
+N = fenics_error_estimation.create_interpolation(element_f, element_g)
 
+V_f = FunctionSpace(mesh, element_f)
 e = TrialFunction(V_f)
 v = TestFunction(V_f)
 
@@ -50,7 +57,7 @@ a_e = inner(grad(e), grad(v))*dx
 L_e = inner(f + div(grad(u_h)), v)*dx + \
     inner(jump(grad(u_h), -n), avg(v))*dS
 
-e_h = bank_weiser.estimate(a_e, L_e, N, bcs)
+e_h = fenics_error_estimation.estimate(a_e, L_e, N, bcs)
 error = norm(e_h, "H10")
 
 # Computation of local error indicator

@@ -4,9 +4,14 @@ import numpy as np
 from dolfin import *
 import ufl
 
-import bank_weiser
+import fenics_error_estimation
 
-k = 2
+k = 1
+if k==1:
+    path = 'linear'
+if k==2:
+    path = 'quadratic'
+
 parameters["ghost_mode"] = "shared_facet"
 parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
@@ -21,8 +26,9 @@ def main():
             "Generate the mesh using `python3 generate_mesh.py` before running this script.")
         exit()
 
-    results = []
-    for i in range(0, 24):
+    results_bw = []
+    print('BW AFEM')
+    for i in range(0, 5):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -30,7 +36,7 @@ def main():
         print('Exact error = {}'.format(err))
         result['exact_error'] = err
 
-        print('Estimating (BW)...')
+        print('Estimating...')
         eta_h = estimate(u_h)
         result['error_bw'] = np.sqrt(eta_h.vector().sum())
         print('BW = {}'.format(np.sqrt(eta_h.vector().sum())))
@@ -43,27 +49,64 @@ def main():
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
 
-
         print('Marking...')
-        markers = bank_weiser.maximum(eta_h, 0.5)
+        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.3)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
 
-        with XDMFFile('output/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}/bank-weiser/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(mesh)
 
-        with XDMFFile('output/u_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}/bank-weiser/u_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(u_h)
 
-        with XDMFFile('output/eta_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}/bank-weiser/eta_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(eta_h)
 
-        results.append(result)
+        results_bw.append(result)
 
     if (MPI.comm_world.rank == 0):
-        df = pd.DataFrame(results)
-        df.to_pickle('output/results.pkl')
+        df = pd.DataFrame(results_bw)
+        df.to_pickle('output/{}/bank-weiser/results_bw.pkl'.format(path))
         print(df)
+
+    for i in range(0 ,5):
+        result = {}
+        V = FunctionSpace(mesh, 'CG', k)
+        print('V dim = {}'.format(V.dim()))
+        u_h, err = solve(V)
+        print('Exact error = {}'.format(err))
+        result['exact_error'] = err
+
+        print('Estimating...')
+        eta_res = residual_estimate(u_h)
+        result['error_res'] = np.sqrt(eta_res.vector().sum())
+        print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
+        result['hmin'] = mesh.hmin()
+        result['hmax'] = mesh.hmax()
+        result['num_dofs'] = V.dim()
+
+        print('Marking...')
+        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.2)
+        print('Refining...')
+        mesh = refine(mesh, markers, redistribute=True)
+
+        with XDMFFile('output/{}/residual/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+            f.write(mesh)
+
+        with XDMFFile('output/{}/residual/u_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+            f.write(u_h)
+
+        with XDMFFile('output/{}/residual/eta_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+            f.write(eta_h)
+
+        results_bw.append(result)
+
+    if (MPI.comm_world.rank == 0):
+        df = pd.DataFrame(results_bw)
+        df.to_pickle('output/{}/residual/results_bw.pkl'.format(path))
+        print(df)
+
 
 def solve(V):
     mesh = V.mesh()
@@ -114,7 +157,7 @@ def estimate(u_h):
     element_g = FiniteElement('DG', tetrahedron, k)
     V_f = FunctionSpace(mesh, element_f)
 
-    N = bank_weiser.create_interpolation(element_f, element_g)
+    N = fenics_error_estimation.create_interpolation(element_f, element_g)
 
     e = TrialFunction(V_f)
     v = TestFunction(V_f)
@@ -128,7 +171,7 @@ def estimate(u_h):
     L_e = inner(f + div(grad(u_h)), v)*dx + \
           inner(jump(grad(u_h), -n), avg(v))*dS
 
-    e_h = bank_weiser.estimate(a_e, L_e, N, bcs)
+    e_h = fenics_error_estimation.estimate(a_e, L_e, N, bcs)
 
     V_e = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(V_e)

@@ -1,3 +1,5 @@
+## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
+## SPDX-License-Identifier: LGPL-3.0-or-later
 import os
 
 import numpy as np
@@ -6,19 +8,24 @@ import pandas as pd
 from dolfin import *
 import ufl
 
-import bank_weiser
+import mpi4py.MPI
+
+import fenics_error_estimation
+
+parameters["ghost_mode"] = "shared_facet"
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
 with open(os.path.join(current_dir, "exact_solution.h"), "r") as f:
     u_exact_code = f.read()
 
-k = 2
-u_exact = CompiledExpression(compile_cpp_code(u_exact_code).Exact(), degree=4)
+k = 3
+u_exact = CompiledExpression(compile_cpp_code(u_exact_code).Exact(), element=FiniteElement("CG", triangle, k + 3))
 
 def main():
-    mesh = Mesh()
+    comm = MPI.comm_world
+    mesh = Mesh(comm)
     try:
-        with XDMFFile(MPI.comm_world, os.path.join(current_dir, 'mesh.xdmf')) as f:
+        with XDMFFile(comm, os.path.join(current_dir, 'mesh.xdmf')) as f:
             f.read(mesh)
     except:
         print(
@@ -26,7 +33,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 15):
+    for i in range(0, 16):
         result = {}
 
         V = FunctionSpace(mesh, "CG", k)
@@ -40,17 +47,27 @@ def main():
         with XDMFFile("output/u_exact_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(u_exact_V)
 
-        eta_h = estimate(u_h)
+        eta_h, e_h = estimate(u_h)
         with XDMFFile("output/eta_hu_{}.xdmf".format(str(i).zfill(4))) as f:
-            f.write(eta_h)
+            f.write_checkpoint(eta_h, "eta_h")
+        with XDMFFile("output/e_h_{}.xdmf".format(str(i).zfill(4))) as f:
+            f.write_checkpoint(e_h, "e_h")
         result["error_bw"] = np.sqrt(eta_h.vector().sum())
 
-        result["hmin"] = mesh.hmin()
-        result["hmax"] = mesh.hmax()
+        V_e = eta_h.function_space()
+        eta_exact = Function(V_e, name="eta_exact")
+        v = TestFunction(V_e)
+        eta_exact.vector()[:] = assemble(inner(inner(grad(u_h - u_exact_V), grad(u_h - u_exact_V)), v)*dx(mesh))
+        result["error_exact"] = np.sqrt(eta_exact.vector().sum())
+        with XDMFFile("output/eta_exact_{}.xdmf".format(str(i).zfill(4))) as f:
+            f.write(eta_exact)
+
+        result["hmin"] = comm.reduce(mesh.hmin(), op=mpi4py.MPI.MIN, root=0)
+        result["hmax"] = comm.reduce(mesh.hmax(), op=mpi4py.MPI.MAX, root=0)
         result["num_dofs"] = V.dim()
 
-        markers = bank_weiser.maximum(eta_h, 0.1)
-        mesh = refine(mesh, markers)
+        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.3)
+        mesh = refine(mesh, markers, redistribute=True)
 
         with XDMFFile("output/mesh_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(mesh)
@@ -88,27 +105,26 @@ def solve(V):
 def estimate(u_h):
     mesh = u_h.function_space().mesh()
 
-    V_f = FunctionSpace(mesh, "DG", k + 1)
-    V_g = FunctionSpace(mesh, "DG", k)
+    element_f = FiniteElement("DG", triangle, k + 1)
+    element_g = FiniteElement("DG", triangle, k)
 
-    N = bank_weiser.create_interpolation(V_f, V_g)
+    N = fenics_error_estimation.create_interpolation(element_f, element_g)
+
+    V_f = FunctionSpace(mesh, element_f)
 
     e = TrialFunction(V_f)
     v = TestFunction(V_f)
 
     f = Constant(0.0)
 
-    def all_boundary(x, on_boundary):
-        return on_boundary
-
-    bcs = DirichletBC(V_f, Constant(0.0), all_boundary, 'geometric')
+    bcs = DirichletBC(V_f, Constant(0.0), "on_boundary", "geometric")
 
     n = FacetNormal(mesh)
     a_e = inner(grad(e), grad(v))*dx
     L_e = inner(f + div(grad(u_h)), v)*dx + \
         inner(jump(grad(u_h), -n), avg(v))*dS
 
-    e_h = bank_weiser.estimate(a_e, L_e, N, bcs)
+    e_h = fenics_error_estimation.estimate(a_e, L_e, N, bcs)
     error = norm(e_h, "H10")
 
     # Computation of local error indicator
@@ -119,7 +135,7 @@ def estimate(u_h):
     eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx)
     eta_h.vector()[:] = eta
 
-    return eta_h
+    return eta_h, e_h
 
 
 if __name__ == "__main__":
