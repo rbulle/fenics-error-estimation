@@ -6,7 +6,7 @@ import ufl
 
 import bank_weiser
 
-k = 1
+k = 2
 parameters["ghost_mode"] = "shared_facet"
 parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
@@ -22,7 +22,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 16):
+    for i in range(0, 24):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -45,7 +45,7 @@ def main():
 
 
         print('Marking...')
-        markers = bank_weiser.maximum(eta_h, 0.2)
+        markers = bank_weiser.maximum(eta_h, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
 
