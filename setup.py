@@ -16,7 +16,7 @@ if sys.version_info < (3, 5):
 
 on_rtd = os.environ.get('READTHEDOCS') == 'True'
 
-VERSION = "2019.2.0.dev0"
+VERSION = "2019.1.0"
 URL = ""
 
 if on_rtd:
@@ -24,7 +24,7 @@ if on_rtd:
 else:
     REQUIREMENTS = [
         "numpy",
-        "fenics-ffc>=2019.2.0.dev0",
+        "fenics-ffc>=2019.1.0",
     ]
 
 AUTHORS = """\
