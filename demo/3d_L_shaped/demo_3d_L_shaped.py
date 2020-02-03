@@ -28,7 +28,7 @@ def main():
 
     results_bw = []
     print('BW AFEM')
-    for i in range(0, 5):
+    for i in range(0, 8):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -50,7 +50,7 @@ def main():
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
 
         print('Marking...')
-        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.3)
+        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
 
@@ -67,10 +67,12 @@ def main():
 
     if (MPI.comm_world.rank == 0):
         df = pd.DataFrame(results_bw)
-        df.to_pickle('output/{}/bank-weiser/results_bw.pkl'.format(path))
+        df.to_pickle('output/{}/bank-weiser/results.pkl'.format(path))
         print(df)
-
-    for i in range(0 ,5):
+ 
+    '''
+    mesh = init_mesh
+    for i in range(0 ,10):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -79,15 +81,15 @@ def main():
         result['exact_error'] = err
 
         print('Estimating...')
-        eta_res = residual_estimate(u_h)
-        result['error_res'] = np.sqrt(eta_res.vector().sum())
-        print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
+        eta_h = residual_estimate(u_h)
+        result['error_res'] = np.sqrt(eta_h.vector().sum())
+        print('Res = {}'.format(np.sqrt(eta_h.vector().sum())))
         result['hmin'] = mesh.hmin()
         result['hmax'] = mesh.hmax()
         result['num_dofs'] = V.dim()
 
         print('Marking...')
-        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.2)
+        markers = fenics_error_estimation.maximum(eta_h, 0.3)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
 
@@ -100,14 +102,13 @@ def main():
         with XDMFFile('output/{}/residual/eta_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(eta_h)
 
-        results_bw.append(result)
+        results_res.append(result)
 
     if (MPI.comm_world.rank == 0):
-        df = pd.DataFrame(results_bw)
-        df.to_pickle('output/{}/residual/results_bw.pkl'.format(path))
+        df = pd.DataFrame(results_res)
+        df.to_pickle('output/{}/residual/results.pkl'.format(path))
         print(df)
-
-
+    '''
 def solve(V):
     mesh = V.mesh()
     u = TrialFunction(V)
