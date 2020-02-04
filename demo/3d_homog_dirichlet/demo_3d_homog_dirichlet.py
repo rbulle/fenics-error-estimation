@@ -28,7 +28,7 @@ def main():
 
     results_bw = []
     print('BW AFEM')
-    for i in range(0, 8):
+    for i in range(0, 10):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -116,20 +116,21 @@ def solve(V):
     v = TestFunction(V)
 
     a = inner(grad(u), grad(v))*dx
-    L = inner(f, v)*dx
 
     # Exact solution
     x = ufl.SpatialCoordinate(mesh)
 
     r, theta = cartesian2polar(x)
 
-    cut_off = ufl.conditional(r<1, exp(-r**2/(1-r**2)), 0)
+    cut_off = ufl.conditional(r<0.5, ufl.exp(-0.5*r**2/(0.25-r**2)), 0.)
 
     u_exact = cut_off*(r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.)))
 
     bcs = DirichletBC(V, Constant(0.), 'on_boundary')
 
     f = -ufl.div(ufl.grad(u_exact))
+
+    L = inner(f, v)*dx
 
     A, b = assemble_system(a, L, bcs=bcs)
 
