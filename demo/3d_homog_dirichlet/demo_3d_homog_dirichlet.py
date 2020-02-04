@@ -28,7 +28,7 @@ def main():
 
     results_bw = []
     print('BW AFEM')
-    for i in range(0, 10):
+    for i in range(0, 5):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -122,8 +122,10 @@ def solve(V):
 
     r, theta = cartesian2polar(x)
 
-    cut_off = ufl.conditional(r<0.5, ufl.exp(-0.5*r**2/(0.25-r**2)), 0.)
-
+    rho = 0.5
+    #cut_off = ufl.conditional(r<0.5, ufl.exp(-0.25*r**2/(0.25-r**2)), 0.)
+    cut_off = ufl.exp(-rho**2*(x[0]**2/(rho**2-x[0]**2)))*ufl.exp(-rho**2*(x[1]**2/(rho**2-x[1]**2)))*ufl.exp(-rho**2*(x[2]**2/(rho**2-x[2]**2)))
+    
     u_exact = cut_off*(r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.)))
 
     bcs = DirichletBC(V, Constant(0.), 'on_boundary')
@@ -149,7 +151,7 @@ def solve(V):
     err = u_exact - u_h
     V_e = FunctionSpace(mesh, 'DG', 0)
     v_T = CellVolume(mesh)
-    err = sqrt(assemble(inner(grad(err), grad(err))*dx))
+    err = sqrt(assemble(inner(ufl.grad(err), ufl.grad(err))*dx))
 
     return u_h, err
 
