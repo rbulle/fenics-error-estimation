@@ -28,7 +28,7 @@ def main():
 
     results_bw = []
     print('BW AFEM')
-    for i in range(0, 2):
+    for i in range(0, 10):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -50,7 +50,7 @@ def main():
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
 
         print('Marking...')
-        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.5)
+        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.3)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
 
@@ -69,46 +69,6 @@ def main():
         df = pd.DataFrame(results_bw)
         df.to_pickle('output/{}/bank-weiser/results.pkl'.format(path))
         print(df)
- 
-    '''
-    mesh = init_mesh
-    for i in range(0 ,10):
-        result = {}
-        V = FunctionSpace(mesh, 'CG', k)
-        print('V dim = {}'.format(V.dim()))
-        u_h, err = solve(V)
-        print('Exact error = {}'.format(err))
-        result['exact_error'] = err
-
-        print('Estimating...')
-        eta_h = residual_estimate(u_h)
-        result['error_res'] = np.sqrt(eta_h.vector().sum())
-        print('Res = {}'.format(np.sqrt(eta_h.vector().sum())))
-        result['hmin'] = mesh.hmin()
-        result['hmax'] = mesh.hmax()
-        result['num_dofs'] = V.dim()
-
-        print('Marking...')
-        markers = fenics_error_estimation.maximum(eta_h, 0.3)
-        print('Refining...')
-        mesh = refine(mesh, markers, redistribute=True)
-
-        with XDMFFile('output/{}/residual/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
-            f.write(mesh)
-
-        with XDMFFile('output/{}/residual/u_{}.xdmf'.format(path, str(i).zfill(4))) as f:
-            f.write(u_h)
-
-        with XDMFFile('output/{}/residual/eta_{}.xdmf'.format(path, str(i).zfill(4))) as f:
-            f.write(eta_h)
-
-        results_res.append(result)
-
-    if (MPI.comm_world.rank == 0):
-        df = pd.DataFrame(results_res)
-        df.to_pickle('output/{}/residual/results.pkl'.format(path))
-        print(df)
-    '''
 
 def solve(V):
     mesh = V.mesh()
@@ -123,11 +83,27 @@ def solve(V):
     r, theta = cartesian2polar(x)
 
     rho = 0.5
+    p = 2 # flatness of the plateau
+    q = 0.1
+    r = 5.
     #cut_off = ufl.conditional(r<0.5, ufl.exp(-0.25*r**2/(0.25-r**2)), 0.)
-    cut_off = ufl.exp(-rho**2*(x[0]**2/(rho**2-x[0]**2)))*ufl.exp(-rho**2*(x[1]**2/(rho**2-x[1]**2)))*ufl.exp(-rho**2*(x[2]**2/(rho**2-x[2]**2)))
-    
+    #cut_off = ufl.exp(-rho**2*(r*x[0]**p/(rho**2-x[0]**2)**q))*ufl.exp(-rho**2*(r*x[1]**p/(rho**2-x[1]**2)**q))*ufl.exp(-rho**2*(r*x[2]**p/(rho**2-x[2]**2)**q))
+    cut_off = (1.-x[0]**2)*(1.-x[1]**2)*(1.-x[2]**2)
+    #cut_off = (0.25 - r**2)
     u_exact = cut_off*(r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.)))
 
+    smesh = mesh
+
+    for i in range(4):
+        smesh = refine(smesh)
+
+    sV = FunctionSpace(smesh, 'CG', 1)
+
+    su = project(u_exact, sV)
+
+    with XDMFFile('output/su.xdmf') as f:
+        f.write_checkpoint(su, 'su')
+    
     bcs = DirichletBC(V, Constant(0.), 'on_boundary')
 
     f = -ufl.div(ufl.grad(u_exact))
