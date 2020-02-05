@@ -28,7 +28,7 @@ def main():
 
     results_bw = []
     print('BW AFEM')
-    for i in range(0, 10):
+    for i in range(0, 2):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -125,6 +125,7 @@ def solve(V):
     rho = 0.5
     #cut_off = ufl.conditional(r<0.5, ufl.exp(-0.25*r**2/(0.25-r**2)), 0.)
     cut_off = ufl.exp(-rho**2*(x[0]**2/(rho**2-x[0]**2)))*ufl.exp(-rho**2*(x[1]**2/(rho**2-x[1]**2)))*ufl.exp(-rho**2*(x[2]**2/(rho**2-x[2]**2)))
+    
     u_exact = cut_off*(r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.)))
 
     bcs = DirichletBC(V, Constant(0.), 'on_boundary')

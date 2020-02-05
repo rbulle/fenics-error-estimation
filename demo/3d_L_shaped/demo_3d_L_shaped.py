@@ -145,8 +145,6 @@ def solve(V):
 
     # Compute the exact error
     err = u_exact - u_h
-    V_e = FunctionSpace(mesh, 'DG', 0)
-    v_T = CellVolume(mesh)
     err = sqrt(assemble(inner(grad(err), grad(err))*dx))
 
     return u_h, err
