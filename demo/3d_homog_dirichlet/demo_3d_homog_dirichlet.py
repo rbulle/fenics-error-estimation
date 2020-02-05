@@ -28,7 +28,7 @@ def main():
 
     results_bw = []
     print('BW AFEM')
-    for i in range(0, 5):
+    for i in range(0, 10):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
