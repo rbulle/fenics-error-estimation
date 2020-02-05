@@ -28,7 +28,7 @@ def main():
 
     results_bw = []
     print('BW AFEM')
-    for i in range(0, 10):
+    for i in range(0, 6):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -82,27 +82,21 @@ def solve(V):
 
     r, theta = cartesian2polar(x)
 
-    rho = 0.5
-    p = 2 # flatness of the plateau
-    q = 0.1
-    r = 5.
-    #cut_off = ufl.conditional(r<0.5, ufl.exp(-0.25*r**2/(0.25-r**2)), 0.)
-    #cut_off = ufl.exp(-rho**2*(r*x[0]**p/(rho**2-x[0]**2)**q))*ufl.exp(-rho**2*(r*x[1]**p/(rho**2-x[1]**2)**q))*ufl.exp(-rho**2*(r*x[2]**p/(rho**2-x[2]**2)**q))
-    cut_off = (1.-x[0]**2)*(1.-x[1]**2)*(1.-x[2]**2)
-    #cut_off = (0.25 - r**2)
+    cut_off = (0.25-x[0]**2)**2*(0.25-x[1]**2)**2*(0.25-x[2]**2)**2
     u_exact = cut_off*(r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.)))
+    
+    su_exact = Function(V)
+    sa = inner(u, v)*dx
 
-    smesh = mesh
+    sL = inner(u_exact, v)*dx
 
-    for i in range(4):
-        smesh = refine(smesh)
+    sA, sb = assemble_system(sa, sL)
 
-    sV = FunctionSpace(smesh, 'CG', 1)
-
-    su = project(u_exact, sV)
+    solver = PETScLUSolver()
+    solver.solve(sA, su_exact.vector(), sb)
 
     with XDMFFile('output/su.xdmf') as f:
-        f.write_checkpoint(su, 'su')
+        f.write_checkpoint(su_exact, 'su')
     
     bcs = DirichletBC(V, Constant(0.), 'on_boundary')
 
