@@ -4,8 +4,8 @@ import meshio
 lc=1.0
 geom = pg.opencascade.Geometry()
 
-big_box = geom.add_box([-0.5, -0.5, 0.25], [1., 1., -0.5], char_length = lc)
-corner_box = geom.add_box([-0.5, -0.5, 0.25], [0.5, 0.5, -0.5], char_length = lc)
+big_box = geom.add_box([-0.5, -0.5, -0.5], [1., 1., 1.], char_length = lc)
+corner_box = geom.add_box([-0.5, -0.5, -0.5], [0.5, 0.5, 1.], char_length = lc)
 
 geom.boolean_difference([big_box], [corner_box])
 

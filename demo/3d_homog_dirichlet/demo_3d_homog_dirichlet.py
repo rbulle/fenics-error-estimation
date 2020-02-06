@@ -82,7 +82,7 @@ def solve(V):
 
     r, theta = cartesian2polar(x)
 
-    cut_off = (0.25-x[0]**2)**2*(0.25-x[1]**2)**2*(0.25-x[2]**2)**2
+    cut_off = 0.25**(-6)*(0.25-x[0]**2)**2*(0.25-x[1]**2)**2*(0.25-x[2]**2)**2
     u_exact = cut_off*(r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.)))
     
     su_exact = Function(V)

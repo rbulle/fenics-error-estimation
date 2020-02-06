@@ -5,8 +5,8 @@
       <Geometry GeometryType="XYZ">
         <DataItem DataType="Float" Dimensions="22 3" Format="HDF" Precision="8">mesh.h5:/data0</DataItem>
       </Geometry>
-      <Topology NumberOfElements="44" TopologyType="Tetrahedron">
-        <DataItem DataType="Int" Dimensions="44 4" Format="HDF" Precision="8">mesh.h5:/data1</DataItem>
+      <Topology NumberOfElements="42" TopologyType="Tetrahedron">
+        <DataItem DataType="Int" Dimensions="42 4" Format="HDF" Precision="8">mesh.h5:/data1</DataItem>
       </Topology>
     </Grid>
   </Domain>
