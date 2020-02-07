@@ -1,7 +1,7 @@
 import pygmsh as pg
 import meshio
 
-lc=0.5
+lc=0.1
 geom = pg.opencascade.Geometry()
 
 big_box = geom.add_box([-0.5, -0.5, -0.5], [1., 1., 1.], char_length = lc)

@@ -28,7 +28,7 @@ def main():
 
     results_bw = []
     print('BW AFEM')
-    for i in range(0, 6):
+    for i in range(0, 8):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
         print('V dim = {}'.format(V.dim()))
@@ -82,9 +82,11 @@ def solve(V):
 
     r, theta = cartesian2polar(x)
 
-    cut_off = 0.25**(-6)*(0.25-x[0]**2)**2*(0.25-x[1]**2)**2*(0.25-x[2]**2)**2
+    cut_off = 0.25**(-6.)*((0.25-x[0]**2)**2)*((0.25-x[1]**2)**2)*((0.25-x[2]**2)**2)
     u_exact = cut_off*(r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.)))
-    
+
+    rad = r
+
     su_exact = Function(V)
     sa = inner(u, v)*dx
 
@@ -97,7 +99,7 @@ def solve(V):
 
     with XDMFFile('output/su.xdmf') as f:
         f.write_checkpoint(su_exact, 'su')
-    
+
     bcs = DirichletBC(V, Constant(0.), 'on_boundary')
 
     f = -ufl.div(ufl.grad(u_exact))
