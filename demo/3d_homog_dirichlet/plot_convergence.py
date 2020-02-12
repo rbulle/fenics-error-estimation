@@ -29,25 +29,35 @@ import matplotlib.cm as cm
 dark_map = [cm.get_cmap("tab20b")(i/20.) for i in range(20)]
 
 df_bw = pd.read_pickle('output/linear/bank-weiser/results.pkl')
+df_res = pd.read_pickle('output/linear/residual/results.pkl')
 
 print('BW adaptive:\n')
 print(df_bw)
 
-x = np.log(df_bw['num_dofs'].values[-5:])
-y = np.log(df_bw['error_bw'].values[-5:])
+x = np.log(df_bw['num_dofs'].values[-3:])
+y = np.log(df_bw['error_bw'].values[-3:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
 print('BW slope =', m)
 
-y = np.log(df_bw['error_res'].values[-5:])
+y = np.log(df_bw['exact_error'].values[-3:])
+A = np.vstack([x, np.ones(len(x))]).T
+m, c = np.linalg.lstsq(A, y)[0]
+print('BW exact error slope =', m)
+
+print('Residual adaptive:\n')
+print(df_res)
+
+x = np.log(df_res['num_dofs'].values[-3:])
+y = np.log(df_res['error_res'].values[-3:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
 print('Res slope =', m)
 
-y = np.log(df_bw['exact_error'].values[-5:])
+y = np.log(df_res['exact_error'].values[-3:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
-print('Exact error slope =', m)
+print('Residual exact error slope =', m)
 
 height = 3.50394/1.608
 width = 3.50394
@@ -58,17 +68,20 @@ plt.rcParams.update({'figure.autolayout': True})
 plt.figure()
 plt.loglog(df_bw["num_dofs"], df_bw['error_bw'], '^-',
            label=r"$\eta_{\mathrm{bw}}$", color=dark_map[0])
-plt.loglog(df_bw["num_dofs"], df_bw['error_res'], '^-',
-           label=r"$\eta_{\mathrm{res}}$", color=dark_map[4])
 plt.loglog(df_bw["num_dofs"], df_bw["exact_error"], '--',
-           label=r"Exact error", color=dark_map[12])
+           label="Exact error (bw)", color=dark_map[1])
+plt.loglog(df_res["num_dofs"], df_res['error_res'], '^-',
+           label=r"$\eta_{\mathrm{res}}$", color=dark_map[4])
+plt.loglog(df_res["num_dofs"], df_res["exact_error"], '--',
+           label="Exact error (res)", color=dark_map[5])
+
 plt.xlabel("Number of dof")
 plt.ylabel("$\eta$")
 
 marker_x, marker_y = marker(df_bw["num_dofs"].values, [df_bw["error_bw"].values, df_bw["error_res"].values, df_bw["exact_error"].values], 0.4, 0.05)
 annotation.slope_marker((marker_x, marker_y), (-1, 3), invert=True)
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-           ncol=3, mode="expand", borderaxespad=0.)
+           ncol=2, mode="expand", borderaxespad=0.)
 plt.savefig('output/error.pdf')
 
 plt.figure()

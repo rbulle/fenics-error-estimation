@@ -17,27 +17,30 @@ parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
 
 def main():
-    mesh = Mesh()
-    try:
-        with XDMFFile(MPI.comm_world, 'mesh.xdmf') as f:
-            f.read(mesh)
-    except:
-        print(
-            "Generate the mesh using `python3 generate_mesh.py` before running this script.")
-        exit()
+    K = 10
+    mesh = UnitCubeMesh(10, 10, 10)
 
+    mesh_init = mesh
     results_bw = []
     print('BW AFEM')
+
     for i in range(0, 8):
         result = {}
         V = FunctionSpace(mesh, 'CG', k)
+
+        # Exact solution
+        x = ufl.SpatialCoordinate(mesh)
+
+        u_exact = ufl.sin(2.*np.pi*x[0])*ufl.sin(2.*np.pi*x[1])*ufl.sin(2.*np.pi*x[2]) 
+        f = 3.*(2.*np.pi)**2*u_exact
+
         print('V dim = {}'.format(V.dim()))
-        u_h, err = solve(V)
+        u_h, err = solve(V, f, u_exact)
         print('Exact error = {}'.format(err))
         result['exact_error'] = err
 
         print('Estimating...')
-        eta_h = estimate(u_h)
+        eta_h = estimate(u_h, f)
         result['error_bw'] = np.sqrt(eta_h.vector().sum())
         print('BW = {}'.format(np.sqrt(eta_h.vector().sum())))
         result['hmin'] = mesh.hmin()
@@ -45,7 +48,7 @@ def main():
         result['num_dofs'] = V.dim()
 
         print('Estimating (res)...')
-        eta_res = residual_estimate(u_h)
+        eta_res = residual_estimate(u_h, f)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
 
@@ -70,46 +73,69 @@ def main():
         df.to_pickle('output/{}/bank-weiser/results.pkl'.format(path))
         print(df)
 
-def solve(V):
+    mesh = mesh_init
+    results_res = []
+    print('Residual AFEM')
+    for i in range(0,8):
+        result = {}
+        V = FunctionSpace(mesh, 'CG', k)
+        
+        # Exact solution
+        x = ufl.SpatialCoordinate(mesh)
+
+        u_exact = ufl.sin(2.*np.pi*x[0])*ufl.sin(2.*np.pi*x[1])*ufl.sin(2.*np.pi*x[2]) 
+        f = 3.*(2.*np.pi)**2*u_exact
+
+        print('V dim = {}'.format(V.dim()))
+        u_h, err = solve(V, f, u_exact)
+        print('Exact error = {}'.format(err))
+        result['exact_error'] = err
+
+        print('Estimating...')
+        eta_h = residual_estimate(u_h, f)
+        result['error_res'] = np.sqrt(eta_h.vector().sum())
+        print('res = {}'.format(np.sqrt(eta_h.vector().sum())))
+        result['hmin'] = mesh.hmin()
+        result['hmax'] = mesh.hmax()
+        result['num_dofs'] = V.dim()
+
+        print('Marking...')
+        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.3)
+        print('Refining...')
+        mesh = refine(mesh, markers, redistribute=True)
+
+        with XDMFFile('output/{}/residual/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+            f.write(mesh)
+
+        with XDMFFile('output/{}/residual/u_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+            f.write(u_h)
+
+        with XDMFFile('output/{}/residual/eta_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+            f.write(eta_h)
+
+        results_res.append(result)
+
+    if (MPI.comm_world.rank == 0):
+        df = pd.DataFrame(results_res)
+        df.to_pickle('output/{}/residual/results.pkl'.format(path))
+        print(df)
+        
+
+def solve(V, f, u_exact):
     mesh = V.mesh()
     u = TrialFunction(V)
     v = TestFunction(V)
 
     a = inner(grad(u), grad(v))*dx
 
-    # Exact solution
-    x = ufl.SpatialCoordinate(mesh)
-
-    r, theta = cartesian2polar(x)
-
-    cut_off = 0.25**(-3.)*(0.25-x[0]**2)*(0.25-x[1]**2)*(0.25-x[2]**2)
-    u_exact = cut_off*(r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.)))
-
-    rad = r
-
-    su_exact = Function(V)
-    sa = inner(u, v)*dx
-
-    sL = inner(u_exact, v)*dx
-
-    sA, sb = assemble_system(sa, sL)
-
-    solver = PETScLUSolver()
-    solver.solve(sA, su_exact.vector(), sb)
-
-    with XDMFFile('output/su.xdmf') as f:
-        f.write_checkpoint(su_exact, 'su')
-
     bcs = DirichletBC(V, Constant(0.), 'on_boundary')
-
-    f = -ufl.div(ufl.grad(u_exact))
 
     L = inner(f, v)*dx
 
     A, b = assemble_system(a, L, bcs=bcs)
 
     u_h = Function(V)
-
+    print('Test')
     PETScOptions.set("ksp_type", "cg")
     PETScOptions.set("ksp_rtol", 1E-10)
     PETScOptions.set("ksp_monitor_true_residual")
@@ -127,7 +153,7 @@ def solve(V):
 
     return u_h, err
 
-def estimate(u_h):
+def estimate(u_h, f):
     mesh = u_h.function_space().mesh()
 
     element_f = FiniteElement('DG', tetrahedron, k + 1)
@@ -138,8 +164,6 @@ def estimate(u_h):
 
     e = TrialFunction(V_f)
     v = TestFunction(V_f)
-
-    f = Constant(0.)
 
     bcs = DirichletBC(V_f, Constant(0.), 'on_boundary', 'geometric')
 
@@ -159,11 +183,9 @@ def estimate(u_h):
 
     return eta_h
 
-def residual_estimate(u_h):
+def residual_estimate(u_h, f):
     mesh = u_h.function_space().mesh()
 
-    f = Expression('3*pi*pi*sin(pi*x[0])*sin(pi*x[1])*sin(pi*x[2])', degree=3)
-    
     n = FacetNormal(mesh)
     r = f + div(grad(u_h))
     J_h = jump(grad(u_h), -n)
