@@ -7,12 +7,13 @@ from dolfin import *
 import ufl
 
 import fenics_error_estimation
+
 parameters["ghost_mode"] = "shared_facet"
 parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
 
 mu = 100.  # First Lamé coefficien
-nu = .4   # Poisson ratio
+nu = .499   # Poisson ratio
 lmbda = 2.*mu*nu/(1.-2.*nu)  # Second Lamé coefficient
 
 def main():
@@ -49,7 +50,7 @@ def main():
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
 
         print('Marking...')
-        markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.5)
+        markers = fenics_error_estimation.dorfler(eta_h, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
 
