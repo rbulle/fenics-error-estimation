@@ -28,7 +28,7 @@ def marker(x_data, y_datas, position, gap):
 import matplotlib.cm as cm
 dark_map = [cm.get_cmap("tab20b")(i/20.) for i in range(20)]
 
-df_bw = pd.read_pickle('output/linear/bank-weiser/results.pkl')
+df_bw = pd.read_pickle('output/linear/bank_weiser/results.pkl')
 
 print('BW adaptive:\n')
 print(df_bw)
