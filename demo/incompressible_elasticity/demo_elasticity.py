@@ -24,7 +24,7 @@ def main():
     V_el = MixedElement([X_el, M_el])
 
     results = []
-    for i in range(0, 15):
+    for i in range(0, 5):
         V = FunctionSpace(mesh, V_el)
 
         result = {}
@@ -46,12 +46,16 @@ def main():
         eta_res = residual_estimate(w_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
-
+        
+        '''
+        # Here adaptive refinement is not necessary
         print('Marking...')
         markers = fenics_error_estimation.dorfler_parallel(eta_h, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
-        
+        '''
+
+        mesh = refine(mesh)
         with XDMFFile('output/bank-weiser/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write(mesh)
 
@@ -80,9 +84,9 @@ def solve(V):
     w_exact = Expression(('pi*cos(pi*x[1])*pow(sin(pi*x[0]), 2)*sin(pi*x[1])', '-pi*cos(pi*x[0])*pow(sin(pi*x[1]), 2)*sin(pi*x[0])', '0'),
                          mu = mu, degree = 4)
 
+    '''
     u_exact = Expression(('pi*cos(pi*x[1])*pow(sin(pi*x[0]), 2)*sin(pi*x[1])', '-pi*cos(pi*x[0])*pow(sin(pi*x[1]), 2)*sin(pi*x[0])'),
                          mu = mu, degree = 4)
-    p_exact = Expression('0', degree = 0)
 
     X_el = VectorElement('CG', triangle, 2)
 
@@ -90,6 +94,7 @@ def solve(V):
     u_exact_h = project(u_exact, V_u)
     with XDMFFile('output/exact_displacement.xdmf') as xdmf:
         xdmf.write_checkpoint(u_exact_h, 'u_exact_h')
+    '''
 
     (u, p) = TrialFunctions(V)
     (v, q) = TestFunctions(V)
@@ -151,7 +156,7 @@ def estimate(w_h):
     M_element_g = FiniteElement('DG', triangle, 1)
 
     N_X = fenics_error_estimation.create_interpolation(X_element_f, X_element_g)
-    N_M = fenics_error_estimation.create_interpolation(M_element_f, M_element_g)
+    # N_M = fenics_error_estimation.create_interpolation(M_element_f, M_element_g)
 
     X_f = FunctionSpace(mesh, X_element_f)
     M_f = FunctionSpace(mesh, M_element_f)
@@ -173,7 +178,7 @@ def estimate(w_h):
     n = FacetNormal(mesh)
     R_K = f + div(2.*mu*sym(grad(u_h))) - grad(p_h)
     r_K = div(u_h) + (1./lmbda)*p_h
-    I = Expression((('1.', '0.'), ('0.', '1.')), degree = 0)
+    I = ufl.Identity(2)
     R_E = (1./2.)*jump(p_h*I - 2.*mu*sym(grad(u_h)), -n)
     rho_d = 1./(lmbda**(-1)+(2.*mu)**(-1))
 
