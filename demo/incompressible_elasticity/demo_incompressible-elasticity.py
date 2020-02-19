@@ -1,5 +1,25 @@
+## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
+## SPDX-License-Identifier: LGPL-3.0-or-later
+
 # Mixed robust incompressible linear elasticity error estimator from Khan,
-# Powell and Silvester 2019 
+# Powell and Silvester (2019) https://doi.org/10.1002/nme.6040. We solve
+# the problem from Carstensen and Gedicke https://doi.org/10.1016/j.cma.2015.10.001.
+#
+# We implement the Poisson problem local estimator detailed in Section 3.5.
+# Somewhat remarkably, despite the complexity of the mixed formulation, an
+# highly efficient implicit estimator is derived involving the solution of two
+# Poisson problems on a special local finite element space. An additional
+# explicit estimator computing related to the pressure can be computed. No
+# local inf-sup condition must be satisfied by the estimation problem.
+
+# Differences with the presentation in Khan et al.:
+# We do not split Equation 50a into two Poisson sub-problems. Instead, we solve
+# it as a single monolithic system. In practice we found the performance
+# benefits of the splitting negligible, especially given the additional
+# complexity.  Note also that the original paper uses quadrilateral finite
+# elements. We use the same estimation strategy on triangular finite elements
+# without any issues (see Page 28).
+
 import pandas as pd
 import numpy as np
 
@@ -75,6 +95,8 @@ def main():
 
 
 def solve(V):
+    """Solve nearly-incompressible elasticity using a P2-P1 mixed finite
+    element method. This is completely standard."""
     mesh = V.mesh()
 
     f = Expression(('-2.*mu*pow(pi,3)*cos(pi*x[1])*sin(pi*x[1])*(2.*cos(2.*pi*x[0]) - 1.)', '2.*mu*pow(pi,3)*cos(pi*x[0])*sin(pi*x[0])*(2.*cos(2.*pi*x[1]) -1.)'),
@@ -144,6 +166,7 @@ def solve(V):
 
 
 def estimate(w_h):
+    """Estimator described in Section 3.5 of Khan et al."""
     mesh = w_h.function_space().mesh()
 
     u_h = w_h.sub(0)
@@ -191,6 +214,7 @@ def estimate(w_h):
 
 
 def residual_estimate(w_h):
+    """Residual estimator described in Section 3.1 of Khan et al."""
     mesh = w_h.function_space().mesh()
 
     f = Expression(('-2.*mu*pow(pi,3)*cos(pi*x[1])*sin(pi*x[1])*(2.*cos(2.*pi*x[0]) - 1.)', '2.*mu*pow(pi,3)*cos(pi*x[0])*sin(pi*x[0])*(2.*cos(2.*pi*x[1]) -1.)'),
