@@ -32,9 +32,6 @@ parameters["ghost_mode"] = "shared_facet"
 parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
 
-mu = 100.  # First Lamé coefficien
-nu = .4   # Poisson ratio
-lmbda = 2.*mu*nu/(1.-2.*nu)  # Second Lamé coefficient
 
 # k_f\k_g for bw definition
 k_f = 3
@@ -45,6 +42,8 @@ path = 'bw_P{}_P{}/'.format(k_f, k_g)
 def main():
     K = 5
     mesh = UnitSquareMesh(K, K)
+    mesh.coordinates()[:] -= 0.5
+    mesh.coordinates()[:] *= 2.
 
     X_el = VectorElement('CG', triangle, 2)
     M_el = FiniteElement('CG', triangle, 1)
@@ -52,12 +51,10 @@ def main():
     V_el = MixedElement([X_el, M_el])
 
     results = []
-    for i in range(0, 16):
+    for i in range(0, 15):
         V = FunctionSpace(mesh, V_el)
 
         result = {}
-        w_h, exact_err = solve(V)
-        print('V dim = {}'.format(V.dim()))
         w_h, err = solve(V)
         print('Exact error = {}'.format(err))
         result['exact_error'] = err
@@ -79,7 +76,7 @@ def main():
         markers = fenics_error_estimation.dorfler(eta_h, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
-        
+
         with XDMFFile('output/{}bank-weiser/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(mesh)
 
@@ -101,27 +98,27 @@ def main():
 
 
 def solve(V):
-    """Solve nearly-incompressible elasticity using a P2-P1 mixed finite
+    """Solve Stokes problem for viscous incompressible flow using a P2-P1 mixed finite
     element method. This is completely standard."""
     mesh = V.mesh()
 
-    f = Expression(('-2.*mu*pow(pi,3)*cos(pi*x[1])*sin(pi*x[1])*(2.*cos(2.*pi*x[0]) - 1.)', '2.*mu*pow(pi,3)*cos(pi*x[0])*sin(pi*x[0])*(2.*cos(2.*pi*x[1]) -1.)'),
-                   mu=mu, degree=4)
+    f = Constant((0., 0.))
 
-    w_exact = Expression(('pi*cos(pi*x[1])*pow(sin(pi*x[0]), 2)*sin(pi*x[1])', '-pi*cos(pi*x[0])*pow(sin(pi*x[1]), 2)*sin(pi*x[0])', '0'), degree = 4)
+    w_exact = Expression(('20.*x[0]*pow(x[1], 3)', '5.*pow(x[0], 4)-5.*pow(x[1], 4)', '60.*pow(x[0], 2)*x[1]- 20.*pow(x[1], 3)'), degree = 4)
+
+    u_exact = Expression(('20.*x[0]*pow(x[1], 3)', '5.*pow(x[0], 4)-5.*pow(x[1], 4)'), degree = 4)
 
     (u, p) = TrialFunctions(V)
     (v, q) = TestFunctions(V)
 
-    a = 2.*mu*inner(sym(grad(u)), sym(grad(v)))*dx
-    b_1 = - inner(p, div(v))*dx
-    b_2 = - inner(q, div(u))*dx
-    c = (1./lmbda)*inner(p, q)*dx
+    a = inner(grad(u), grad(v))*dx
+    b = - inner(p, div(v))*dx
+    c = - inner(div(u), q)*dx
 
-    B = a + b_1 + b_2 - c
+    B = a + b + c
     L = inner(f, v)*dx
 
-    bcs = DirichletBC(V.sub(0), Constant((0., 0.)), 'on_boundary')
+    bcs = DirichletBC(V, w_exact, 'on_boundary')
 
     A, b = assemble_system(B, L, bcs=bcs)
 
@@ -141,12 +138,6 @@ def solve(V):
     with XDMFFile('output/pressure.xdmf') as f:
         f.write_checkpoint(p_h, 'p_h')
 
-    '''
-    u_exact_h = project(w_exact, V_u)
-    with XDMFFile('output/exact_displacement.xdmf') as xdmf:
-        xdmf.write_checkpoint(u_exact_h, 'u_exact_h')
-    '''
-
     X_el_f = VectorElement('CG', triangle, 3)
     M_el_f = FiniteElement('CG', triangle, 2)
 
@@ -157,6 +148,12 @@ def solve(V):
     w_h_f = project(w_h, V_f)
     w_f = project(w_exact, V_f)
 
+    with XDMFFile('output/exact_disp.xdmf') as f:
+        f.write_checkpoint(w_f.sub(0), 'exact_disp')
+
+    with XDMFFile('output/exact_p.xdmf') as f:
+        f.write_checkpoint(w_f.sub(1), 'exact_p')
+
     w_diff = Function(V_f)
     w_diff.vector()[:] = w_h_f.vector()[:] - w_f.vector()[:]
     local_exact_err_2 = energy_norm(w_diff)
@@ -165,7 +162,7 @@ def solve(V):
 
 
 def estimate(w_h):
-    """Estimator described in Section 3.5 of Khan et al."""
+    """Estimator described in Section 3.3 of Liao and Silvester"""
     mesh = w_h.function_space().mesh()
 
     u_h = w_h.sub(0)
@@ -179,8 +176,7 @@ def estimate(w_h):
 
     X_f = FunctionSpace(mesh, X_element_f)
 
-    f = Expression(('-2.*mu*pow(pi,3)*cos(pi*x[1])*sin(pi*x[1])*(2.*cos(2.*pi*x[0]) - 1.)', '2.*mu*pow(pi,3)*cos(pi*x[0])*sin(pi*x[0])*(2.*cos(2.*pi*x[1]) -1.)'),
-                   mu=mu, degree=4)
+    f = Constant((0., 0.))
 
     e_X = TrialFunction(X_f)
     v_X = TestFunction(X_f)
@@ -188,45 +184,42 @@ def estimate(w_h):
     bcs = DirichletBC(X_f, Constant((0., 0.)), 'on_boundary', 'geometric')
 
     n = FacetNormal(mesh)
-    R_K = f + div(2.*mu*sym(grad(u_h))) - grad(p_h)
+    R_T = f + div(grad(u_h)) - grad(p_h)
     I = Identity(2)
 
-    R_E = (1./2.)*jump(p_h*I - 2.*mu*sym(grad(u_h)), -n)
-    rho_d = 1./(lmbda**(-1)+(2.*mu)**(-1))
+    R_E = (1./2.)*jump(-p_h*I + grad(u_h), -n)
 
-    a_X_e = 2.*mu*inner(grad(e_X), grad(v_X))*dx
-    L_X_e = inner(R_K, v_X)*dx - inner(R_E, avg(v_X))*dS
+    a_X_e = inner(grad(e_X), grad(v_X))*dx
+    L_X_e = inner(R_T, v_X)*dx - inner(R_E, avg(v_X))*dS
 
     e_h = fenics_error_estimation.estimate(a_X_e, L_X_e, N_X, bcs)
 
-    r_K = div(u_h) + (1./lmbda)*p_h
+    r_K = div(u_h)
 
     V_e = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(V_e)
 
     eta_h = Function(V_e)
-    eta = assemble(2.*mu*inner(inner(grad(e_h), grad(e_h)), v)*dx + \
-          rho_d*inner(inner(r_K, r_K), v)*dx)
+    eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx + inner(inner(r_K, r_K), v)*dx)
     eta_h.vector()[:] = eta
 
     return eta_h
 
 
 def residual_estimate(w_h):
-    """Residual estimator described in Section 3.1 of Khan et al."""
+    """Residual estimator described in Section 3.1 of Liao and Silvester"""
     mesh = w_h.function_space().mesh()
 
-    f = Expression(('-2.*mu*pow(pi,3)*cos(pi*x[1])*sin(pi*x[1])*(2.*cos(2.*pi*x[0]) - 1.)', '2.*mu*pow(pi,3)*cos(pi*x[0])*sin(pi*x[0])*(2.*cos(2.*pi*x[1]) -1.)'),
-                   mu=mu, degree=4)
+    f = Constant((0., 0.))
 
     u_h = w_h.sub(0)
     p_h = w_h.sub(1)
 
     n = FacetNormal(mesh)
-    R_K = f + div(2.*mu*sym(grad(u_h))) - grad(p_h)
-    r_K = div(u_h) + (1./lmbda)*p_h
+    R_T = f + div(grad(u_h)) - grad(p_h)
+    r_T = div(u_h)
     I = Identity(2)
-    R_E = (1./2.)*jump(p_h*I - 2.*mu*sym(grad(u_h)), -n)
+    R_E = (1./2.)*jump(-p_h*I + grad(u_h), -n)
 
     V = FunctionSpace(mesh, "DG", 0)
     v = TestFunction(V)
@@ -234,12 +227,8 @@ def residual_estimate(w_h):
 
     eta_h = Function(V)
 
-    rho_K = (h*(2.*mu)**(-0.5))/2.
-    rho_E = (avg(h)*(2.*mu)**(-1))/2.
-    rho_d = 1./(lmbda**(-1)+(2.*mu)**(-1))
-
-    eta = assemble(rho_K**2*R_K**2*v*dx + rho_d*r_K **
-                   2*v*dx + rho_E*R_E**2*avg(v)*dS)
+    eta = assemble(h**2*R_T**2*v*dx + r_T**
+                   2*v*dx + avg(h)*R_E**2*avg(v)*dS)
     eta_h.vector()[:] = eta
 
     return eta_h
@@ -253,8 +242,7 @@ def energy_norm(x):
     W = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(W)
 
-    form = Constant(2.*mu)*inner(inner(grad(u), grad(u)), v)*dx + Constant(1./(2.*mu)) * \
-        inner(inner(p, p), v)*dx + Constant(1./lmbda)*inner(inner(p, p), v)*dx
+    form = inner(inner(grad(u), grad(u)), v)*dx + inner(inner(p, p), v)*dx
     norm_2 = assemble(form)
     return norm_2
 
