@@ -33,8 +33,14 @@ parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
 
 mu = 100.  # First Lamé coefficien
-nu = .499   # Poisson ratio
+nu = .4   # Poisson ratio
 lmbda = 2.*mu*nu/(1.-2.*nu)  # Second Lamé coefficient
+
+# k_f\k_g for bw definition
+k_f = 3
+k_g = 0
+
+path = 'bw_P{}_P{}/'.format(k_f, k_g)
 
 def main():
     K = 5
@@ -46,7 +52,7 @@ def main():
     V_el = MixedElement([X_el, M_el])
 
     results = []
-    for i in range(0, 5):
+    for i in range(0, 6):
         V = FunctionSpace(mesh, V_el)
 
         result = {}
@@ -79,23 +85,23 @@ def main():
 
         mesh = refine(mesh)
         
-        with XDMFFile('output/bank-weiser/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}bank-weiser/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(mesh)
 
-        with XDMFFile('output/bank-weiser/disp_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}bank-weiser/disp_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(0), 'u_{}'.format(str(i).zfill(4)))
 
-        with XDMFFile('output/bank-weiser/pres_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}bank-weiser/pres_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(1), 'p_{}'.format(str(i).zfill(4)))
 
-        with XDMFFile('output/bank-weiser/eta_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/{}bank-weiser/eta_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write_checkpoint(eta_h, 'eta_{}'.format(str(i).zfill(4)))
 
         results.append(result)
 
     if (MPI.comm_world.rank == 0):
         df = pd.DataFrame(results)
-        df.to_pickle('output/results.pkl')
+        df.to_pickle('output/{}results.pkl'.format(path))
         print(df)
 
 
@@ -107,7 +113,7 @@ def solve(V):
     f = Expression(('-2.*mu*pow(pi,3)*cos(pi*x[1])*sin(pi*x[1])*(2.*cos(2.*pi*x[0]) - 1.)', '2.*mu*pow(pi,3)*cos(pi*x[0])*sin(pi*x[0])*(2.*cos(2.*pi*x[1]) -1.)'),
                    mu=mu, degree=4)
 
-    w_exact = Expression(('pi*cos(pi*x[1])*pow(sin(pi*x[0]), 2)*sin(pi*x[1])', '-pi*cos(pi*x[0])*pow(sin(pi*x[1]), 2)*sin(pi*x[0])', '0'),
+    w_exact = Expression(('pi*cos(pi*x[1])*pow(sin(pi*x[0]), 2)*sin(pi*x[1])', '-pi*cos(pi*x[0])*pow(sin(pi*x[1]), 2)*sin(pi*x[0])', '0'), degree = 4)
 
     (u, p) = TrialFunctions(V)
     (v, q) = TestFunctions(V)
@@ -140,9 +146,11 @@ def solve(V):
     with XDMFFile('output/pressure.xdmf') as f:
         f.write_checkpoint(p_h, 'p_h')
 
-    u_exact_h = project(u_exact, V_u)
+    '''
+    u_exact_h = project(w_exact, V_u)
     with XDMFFile('output/exact_displacement.xdmf') as xdmf:
         xdmf.write_checkpoint(u_exact_h, 'u_exact_h')
+    '''
 
     X_el_f = VectorElement('CG', triangle, 3)
     M_el_f = FiniteElement('CG', triangle, 2)
@@ -168,8 +176,8 @@ def estimate(w_h):
     u_h = w_h.sub(0)
     p_h = w_h.sub(1)
 
-    X_element_f = VectorElement('DG', triangle, 3)
-    X_element_g = VectorElement('DG', triangle, 1)
+    X_element_f = VectorElement('DG', triangle, k_f)
+    X_element_g = VectorElement('DG', triangle, k_g)
 
     N_X = fenics_error_estimation.create_interpolation(
         X_element_f, X_element_g)

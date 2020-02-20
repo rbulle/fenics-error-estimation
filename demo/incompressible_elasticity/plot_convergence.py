@@ -28,23 +28,41 @@ def marker(x_data, y_datas, position, gap):
 import matplotlib.cm as cm
 dark_map = [cm.get_cmap("tab20b")(i/20.) for i in range(20)]
 
-df_bw = pd.read_pickle('output/results.pkl')
+df_bw_P3_P0 = pd.read_pickle('output/bw_P3_P0/results.pkl')
+df_bw_P3_P1 = pd.read_pickle('output/bw_P3_P1/results.pkl')
+df_bw_P3_P2 = pd.read_pickle('output/bw_P3_P2/results.pkl')
 
-print('BW adaptive:\n')
-print(df_bw)
+print('BW P3\P0:\n')
+print(df_bw_P3_P0)
+print('BW P3\P1:\n')
+print(df_bw_P3_P1)
+print('BW P3\P2:\n')
+print(df_bw_P3_P2)
 
-x = np.log(df_bw['num_dofs'].values[-5:])
-y = np.log(df_bw['error_bw'].values[-5:])
+x = np.log(df_bw_P3_P1['num_dofs'].values[-5:])
+y = np.log(df_bw_P3_P1['error_bw'].values[-5:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
-print('BW slope =', m)
+print('BW P3\P1 slope =', m)
 
-y = np.log(df_bw['error_res'].values[-5:])
+x = np.log(df_bw_P3_P0['num_dofs'].values[-5:])
+y = np.log(df_bw_P3_P0['error_bw'].values[-5:])
+A = np.vstack([x, np.ones(len(x))]).T
+m, c = np.linalg.lstsq(A, y)[0]
+print('BW P3\P0 slope =', m)
+
+x = np.log(df_bw_P3_P2['num_dofs'].values[-5:])
+y = np.log(df_bw_P3_P2['error_bw'].values[-5:])
+A = np.vstack([x, np.ones(len(x))]).T
+m, c = np.linalg.lstsq(A, y)[0]
+print('BW P3\P2 slope =', m)
+
+y = np.log(df_bw_P3_P1['error_res'].values[-5:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
 print('Res slope =', m)
 
-y = np.log(df_bw['exact_error'].values[-5:])
+y = np.log(df_bw_P3_P1['exact_error'].values[-5:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
 print('Exact error slope =', m)
@@ -56,28 +74,38 @@ plt.rcParams.update({'lines.markersize': 5})
 plt.rcParams.update({'figure.figsize': [width, height]})
 plt.rcParams.update({'figure.autolayout': True})
 plt.figure()
-plt.loglog(df_bw["num_dofs"], df_bw['error_bw'], '^-',
-           label=r"$\eta_{\mathrm{bw}}$", color=dark_map[0])
-plt.loglog(df_bw["num_dofs"], df_bw['error_res'], '^-',
+plt.loglog(df_bw_P3_P1["num_dofs"], df_bw_P3_P1['error_bw'], '^-',
+           label=r"$\eta_{\mathrm{bw}}$ (P3\P1)", color=dark_map[0])
+plt.loglog(df_bw_P3_P0['num_dofs'], df_bw_P3_P0['error_bw'], '^-',
+           label=r"$\eta_{\mathrm{bw}}$ (P3\P0)", color=dark_map[2])
+plt.loglog(df_bw_P3_P2['num_dofs'], df_bw_P3_P2['error_bw'], '^-',
+           label=r'$\eta_{\mathrm{bw}}$ (P3\P2)', color=dark_map[6])
+plt.loglog(df_bw_P3_P1["num_dofs"], df_bw_P3_P1['error_res'], '^-',
            label=r"$\eta_{\mathrm{res}}$", color=dark_map[4])
-plt.loglog(df_bw["num_dofs"], df_bw["exact_error"], '--',
+plt.loglog(df_bw_P3_P1["num_dofs"], df_bw_P3_P1["exact_error"], '--',
            label=r"Exact error", color=dark_map[12])
 plt.xlabel("Number of dof")
 plt.ylabel("$\eta$")
 
-marker_x, marker_y = marker(df_bw["num_dofs"].values, [df_bw["error_bw"].values, df_bw["error_res"].values, df_bw["exact_error"].values], 0.4, 0.05)
+marker_x, marker_y = marker(df_bw_P3_P1["num_dofs"].values, [df_bw_P3_P1["error_bw"].values, df_bw_P3_P0["error_bw"].values, df_bw_P3_P2["error_bw"].values, df_bw_P3_P1["error_res"].values, df_bw_P3_P1["exact_error"].values], 0.4, 0.05)
 annotation.slope_marker((marker_x, marker_y), (-1, 1), invert=True)
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
            ncol=3, mode="expand", borderaxespad=0.)
 plt.savefig('output/error.pdf')
 
 plt.figure()
-steps = np.arange(len(df_bw['num_dofs'].values))
-bw_eff = np.divide(df_bw['error_bw'].values, df_bw['exact_error'].values)
-res_eff = np.divide(df_bw['error_res'].values, df_bw['exact_error'].values)
-print('BW eff:', bw_eff)
+steps = np.arange(len(df_bw_P3_P1['num_dofs'].values))
+bw_eff_P3_P1 = np.divide(df_bw_P3_P1['error_bw'].values, df_bw_P3_P1['exact_error'].values)
+bw_eff_P3_P0 = np.divide(df_bw_P3_P0['error_bw'].values, df_bw_P3_P1['exact_error'].values)
+bw_eff_P3_P2 = np.divide(df_bw_P3_P2['error_bw'].values, df_bw_P3_P1['exact_error'].values)
+res_eff = np.divide(df_bw_P3_P1['error_res'].values, df_bw_P3_P1['exact_error'].values)
+print('BW eff P3\P1:', bw_eff_P3_P1)
+print('BW eff P3\P0:', bw_eff_P3_P0)
+print('BW eff P3\P2:', bw_eff_P3_P2)
 print('Res eff:', res_eff)
-plt.plot(steps, bw_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{bw}}}$", color=dark_map[0])
+plt.plot(steps, bw_eff_P3_P1, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{bw}}}$ (P3\P1)", color=dark_map[0])
+plt.plot(steps, bw_eff_P3_P0, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{bw}}}$ (P3\P0)", color=dark_map[2])
+plt.plot(steps, bw_eff_P3_P2, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{bw}}}$ (P3\P2)", color=dark_map[6])
 plt.plot(steps, res_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{res}}}$", color=dark_map[4])
 
 xmin, xmax, ymin, ymax = plt.axis()
