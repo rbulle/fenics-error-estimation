@@ -74,6 +74,7 @@ plt.rcParams.update({'lines.markersize': 5})
 plt.rcParams.update({'figure.figsize': [width, height]})
 plt.rcParams.update({'figure.autolayout': True})
 plt.figure()
+
 plt.loglog(df_bw_P3_P1["num_dofs"], df_bw_P3_P1['error_bw'], '^-',
            label=r"$\eta_{\mathrm{bw}}$ (P3\P1)", color=dark_map[0])
 plt.loglog(df_bw_P3_P0['num_dofs'], df_bw_P3_P0['error_bw'], '^-',
@@ -96,8 +97,8 @@ plt.savefig('output/error.pdf')
 plt.figure()
 steps = np.arange(len(df_bw_P3_P1['num_dofs'].values))
 bw_eff_P3_P1 = np.divide(df_bw_P3_P1['error_bw'].values, df_bw_P3_P1['exact_error'].values)
-bw_eff_P3_P0 = np.divide(df_bw_P3_P0['error_bw'].values, df_bw_P3_P1['exact_error'].values)
-bw_eff_P3_P2 = np.divide(df_bw_P3_P2['error_bw'].values, df_bw_P3_P1['exact_error'].values)
+bw_eff_P3_P0 = np.divide(df_bw_P3_P0['error_bw'].values, df_bw_P3_P0['exact_error'].values)
+bw_eff_P3_P2 = np.divide(df_bw_P3_P2['error_bw'].values, df_bw_P3_P2['exact_error'].values)
 res_eff = np.divide(df_bw_P3_P1['error_res'].values, df_bw_P3_P1['exact_error'].values)
 print('BW eff P3\P1:', bw_eff_P3_P1)
 print('BW eff P3\P0:', bw_eff_P3_P0)

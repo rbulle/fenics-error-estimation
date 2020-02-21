@@ -35,26 +35,28 @@ parameters["form_compiler"]["cpp_optimize"] = True
 
 # k_f\k_g for bw definition
 k_f = 3
-k_g = 2
+k_g = 1
 
 path = 'bw_P{}_P{}/'.format(k_f, k_g)
 
 def main():
-    K = 5
+    K = 4
     mesh = UnitSquareMesh(K, K)
     mesh.coordinates()[:] -= 0.5
     mesh.coordinates()[:] *= 2.
-
+    
     X_el = VectorElement('CG', triangle, 2)
     M_el = FiniteElement('CG', triangle, 1)
 
     V_el = MixedElement([X_el, M_el])
 
     results = []
-    for i in range(0, 15):
+    for i in range(0, 5):
         V = FunctionSpace(mesh, V_el)
-
+        
         result = {}
+        result['num_cells'] = V.mesh().num_cells()
+
         w_h, err = solve(V)
         print('Exact error = {}'.format(err))
         result['exact_error'] = err
@@ -71,11 +73,14 @@ def main():
         eta_res = residual_estimate(w_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
-        
+        '''
         print('Marking...')
         markers = fenics_error_estimation.dorfler(eta_h, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
+        '''
+
+        mesh = refine(mesh)
 
         with XDMFFile('output/{}bank-weiser/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(mesh)
@@ -190,7 +195,7 @@ def estimate(w_h):
     R_E = (1./2.)*jump(-p_h*I + grad(u_h), -n)
 
     a_X_e = inner(grad(e_X), grad(v_X))*dx
-    L_X_e = inner(R_T, v_X)*dx - inner(R_E, avg(v_X))*dS
+    L_X_e = inner(R_T, v_X)*dx - inner(R_E, 2.*avg(v_X))*dS
 
     e_h = fenics_error_estimation.estimate(a_X_e, L_X_e, N_X, bcs)
 

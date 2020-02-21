@@ -33,7 +33,7 @@ parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
 
 mu = 100.  # First Lamé coefficien
-nu = .4   # Poisson ratio
+nu = .499    # Poisson ratio
 lmbda = 2.*mu*nu/(1.-2.*nu)  # Second Lamé coefficient
 
 # k_f\k_g for bw definition
@@ -52,7 +52,7 @@ def main():
     V_el = MixedElement([X_el, M_el])
 
     results = []
-    for i in range(0, 16):
+    for i in range(0, 15):
         V = FunctionSpace(mesh, V_el)
 
         result = {}
@@ -74,12 +74,12 @@ def main():
         eta_res = residual_estimate(w_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
-        
+
         print('Marking...')
         markers = fenics_error_estimation.dorfler(eta_h, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
-        
+
         with XDMFFile('output/{}bank-weiser/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(mesh)
 
