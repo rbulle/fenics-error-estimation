@@ -32,17 +32,18 @@ parameters["ghost_mode"] = "shared_facet"
 parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
 
-coef_load = -(3./2.)*5.**(-2)*1.e9
 E = 210.e9      # Young's modulus
 nu = 0.4999     # Poisson's ratio
 kappa = E*nu/((1. + nu)*(1.-2.*nu))
-Eb = E/(1.-nu**2)
-nub = nu/(1.-nu**2)
+Eb = E #/(1.-nu**2)
+nub = nu #/(1.-nu**2)
 mu = E/(2.*(1.-nu))
 lmbda = E*nu/((1.+nu)*(1.-2.*nu))
 Le = 200.e-3     # Length of the beam
 D = 100.e-3     # height of the beam
-I = E*D**3/12.  # Second-area moment
+I = D**3/12.  # Second-area moment
+coef_load = (9.*E*I*1.e9)/(50.*Le**3)    # Traction load coefficient
+P = - 5e3
 
 # k_f\k_g for bw definition
 k_f = 3
@@ -54,8 +55,9 @@ def main():
     K = 2
     mesh = UnitSquareMesh(2*K, K)
 
+    mesh.coordinates()[:] *= 1./10.
     mesh.coordinates()[:, 0] *= 2.
-    mesh.coordinates()[:, 1] -= 0.5
+    mesh.coordinates()[:, 1] -= 0.05
 
     X_el = VectorElement('CG', triangle, 2)
     M_el = FiniteElement('CG', triangle, 1)
@@ -67,10 +69,10 @@ def main():
         V = FunctionSpace(mesh, V_el)
 
         result = {}
-        w_h, exact_err = solve(V)
         print('V dim = {}'.format(V.dim()))
-        w_h, err = solve(V)
+        w_h, err, normalized_err = solve(V)
         print('Exact error = {}'.format(err))
+        print('Normalized error = {}'.format(normalized_err))
         result['exact_error'] = err
 
         print('Estimating...')
@@ -133,20 +135,28 @@ def solve(V):
     c = (1./lmbda)*inner(p, q)*dx
 
     B = a + b_1 + b_2 - c
-    L = inner(f, v)*dx
 
     class LeftBoundary(SubDomain):
         def inside(self, x, on_boundary):
             return on_boundary and near(x[0], 0.)
 
-    class DirichletBoundary(SubDomain):
+    class NeumannBoundary(SubDomain):
         def inside(self, x, on_boundary):
-            return on_boundary and not near(x[0], 0.)
+            return on_boundary and near(x[0], 2.)
 
     leftBoundary = LeftBoundary()
-    dirichletBoundary = DirichletBoundary()
+    neumannBoundary = NeumannBoundary()
 
-    bcs = DirichletBC(V.sub(0), Constant((0., 0.)), 'on_boundary')
+    bcs = DirichletBC(V.sub(0), u_exact, leftBoundary)
+
+    boundaryfct = MeshFunction("size_t", mesh, mesh.topology().dim()-1)
+    boundaryfct.set_all(0)
+    neumannBoundary.mark(boundaryfct, 1)
+
+    ds_n = Measure('ds', domain = mesh, subdomain_data = boundaryfct)
+
+    t = Expression(('0.', '- (P/(2.*I))*(pow(D, 2)/4. - pow(x[1], 2))'), P=P, D=D, I=I, degree = 2)
+    L = inner(f, v)*dx + inner(t, v)*ds_n(1)
 
     A, b = assemble_system(B, L, bcs=bcs)
 
@@ -191,8 +201,17 @@ def solve(V):
     p_diff.vector()[:] = p_f.vector()[:] - p_h_f.vector()[:]
 
     local_exact_err_2 = energy_norm(u_diff, p_diff)
+
+    W = FunctionSpace(mesh, 'DG', 0)
+    v = TestFunction(W)
+    
+    form = Constant(2.*mu)*inner(inner(grad(u_exact), grad(u_exact)), v)*dx + Constant(1./(2.*mu)) * \
+        inner(inner(p_exact, p_exact), v)*dx + Constant(1./lmbda)*inner(inner(p_exact, p_exact), v)*dx
+    local_norm_w_exact_2 = assemble(form)
     exact_err = sqrt(sum(local_exact_err_2[:]))
-    return w_h, exact_err
+    norm_w_exact = sqrt(sum(local_norm_w_exact_2[:]))
+    normalized_err = exact_err/norm_w_exact
+    return w_h, exact_err, normalized_err
 
 
 def estimate(w_h):

@@ -33,14 +33,8 @@ parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
 
 
-# k_f\k_g for bw definition
-k_f = 3
-k_g = 1
-
-path = 'bw_P{}_P{}/'.format(k_f, k_g)
-
 def main():
-    K = 4
+    K = 10
     mesh = UnitSquareMesh(K, K)
     mesh.coordinates()[:] -= 0.5
     mesh.coordinates()[:] *= 2.
@@ -52,16 +46,17 @@ def main():
     V_el = MixedElement([X_el, M_el, L_el])
 
     results = []
-    for i in range(0, 5):
+    for i in range(0, 8):
         V = FunctionSpace(mesh, V_el)
         
         result = {}
         result['num_cells'] = V.mesh().num_cells()
 
-        w_h, err = solve(V)
+        w_h = solve(V)
+        '''
         print('Exact error = {}'.format(err))
         result['exact_error'] = err
-
+        '''
         print('Estimating...')
         eta_h = estimate(w_h)
         result['error_bw'] = np.sqrt(eta_h.vector().sum())
@@ -74,6 +69,7 @@ def main():
         eta_res = residual_estimate(w_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
+
         '''
         print('Marking...')
         markers = fenics_error_estimation.dorfler(eta_h, 0.5)
@@ -83,23 +79,23 @@ def main():
 
         mesh = refine(mesh)
 
-        with XDMFFile('output/{}bank-weiser/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+        with XDMFFile('output/bank-weiser/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write(mesh)
 
-        with XDMFFile('output/{}bank-weiser/disp_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+        with XDMFFile('output/bank-weiser/disp_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(0), 'u_{}'.format(str(i).zfill(4)))
 
-        with XDMFFile('output/{}bank-weiser/pres_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+        with XDMFFile('output/bank-weiser/pres_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(1), 'p_{}'.format(str(i).zfill(4)))
 
-        with XDMFFile('output/{}bank-weiser/eta_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+        with XDMFFile('output/bank-weiser/eta_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(eta_h, 'eta_{}'.format(str(i).zfill(4)))
 
         results.append(result)
 
     if (MPI.comm_world.rank == 0):
         df = pd.DataFrame(results)
-        df.to_pickle('output/{}results.pkl'.format(path))
+        df.to_pickle('output/bank-weiser/results.pkl')
         print(df)
 
 
@@ -113,17 +109,13 @@ def solve(V):
     w_exact = Expression(('20.*x[0]*pow(x[1], 3)', '5.*pow(x[0], 4)-5.*pow(x[1], 4)', '60.*pow(x[0], 2)*x[1]- 20.*pow(x[1], 3)'), degree = 4)
 
     u_exact = Expression(('20.*x[0]*pow(x[1], 3)', '5.*pow(x[0], 4)-5.*pow(x[1], 4)'), degree = 4)
-
+    p_exact = Expression('60.*pow(x[0], 2)*x[1]- 20.*pow(x[1], 3)', degree=4)
     (u, p, u_l) = TrialFunctions(V)
     (v, q, v_l) = TestFunctions(V)
 
     a = inner(grad(u), grad(v))*dx
     b = - inner(p, div(v))*dx
     c = - inner(div(u), q)*dx
-
-    L = FunctionSpace(mesh, 'R', 0)
-    u_l = TrialFunction(L)
-    v_l = TestFunction(L)
 
     d = inner(u_l, q)*dx + inner(v_l, p)*dx
     B = a + b + c + d
@@ -149,28 +141,36 @@ def solve(V):
         f.write_checkpoint(u_h, 'u_h')
     with XDMFFile('output/pressure.xdmf') as f:
         f.write_checkpoint(p_h, 'p_h')
-
+    '''
     X_el_f = VectorElement('CG', triangle, 3)
     M_el_f = FiniteElement('CG', triangle, 2)
 
-    V_el_f = MixedElement([X_el_f, M_el_f])
+    X_f = FunctionSpace(mesh, X_el_f)
+    M_f = FunctionSpace(mesh, M_el_f)
 
-    V_f = FunctionSpace(mesh, V_el_f)
+    u_h_f = project(u_h, X_f)
+    p_h_f = project(p_h, M_f)
 
-    w_h_f = project(w_h, V_f)
-    w_f = project(w_exact, V_f)
+    u_f = project(u_exact, X_f)
+    p_f = project(p_exact, M_f)
 
+    u_diff = Function(X_f)
+    u_diff.vector()[:] = u_f.vector()[:] - u_h_f.vector()[:]
+
+    p_diff = Function(M_f)
+    p_diff.vector()[:] = p_f.vector()[:] - p_h_f.vector()[:]
+
+    local_exact_err_2 = energy_norm(u_diff, p_diff)
     with XDMFFile('output/exact_disp.xdmf') as f:
-        f.write_checkpoint(w_f.sub(0), 'exact_disp')
+        f.write_checkpoint(u_h_f, 'exact_disp')
 
     with XDMFFile('output/exact_p.xdmf') as f:
-        f.write_checkpoint(w_f.sub(1), 'exact_p')
+        f.write_checkpoint(p_h_f, 'exact_p')
 
-    w_diff = Function(V_f)
-    w_diff.vector()[:] = w_h_f.vector()[:] - w_f.vector()[:]
-    local_exact_err_2 = energy_norm(w_diff)
+    local_exact_err_2 = energy_norm(u_diff, p_diff)
     exact_err = sqrt(sum(local_exact_err_2[:]))
-    return w_h, exact_err
+    '''
+    return w_h #, exact_err
 
 
 def estimate(w_h):
@@ -180,8 +180,8 @@ def estimate(w_h):
     u_h = w_h.sub(0)
     p_h = w_h.sub(1)
 
-    X_element_f = VectorElement('DG', triangle, k_f)
-    X_element_g = VectorElement('DG', triangle, k_g)
+    X_element_f = VectorElement('DG', triangle, 3)
+    X_element_g = VectorElement('DG', triangle, 2)
 
     N_X = fenics_error_estimation.create_interpolation(
         X_element_f, X_element_g)
@@ -206,13 +206,28 @@ def estimate(w_h):
 
     e_h = fenics_error_estimation.estimate(a_X_e, L_X_e, N_X, bcs)
 
-    r_T = avg(div(u_h))
+    M_element_f = FiniteElement('DG', triangle, 2)
+    M_element_g = FiniteElement('DG', triangle, 1)
+
+    N_M = fenics_error_estimation.create_interpolation(
+        M_element_f, M_element_g)
+   
+    M_f = FunctionSpace(mesh, M_element_f)
+
+    p_M_f = TrialFunction(M_f)
+    q_M_f = TestFunction(M_f)
+
+    a_M_e = inner(p_M_f, q_M_f)*dx
+    r_T = div(u_h)
+    L_M_e = inner(r_T, q_M_f)*dx
+
+    eps_h = fenics_error_estimation.estimate(a_M_e, L_M_e, N_M)
 
     V_e = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(V_e)
 
     eta_h = Function(V_e)
-    eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx + inner(inner(r_T, r_T), v)*dx)
+    eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx + inner(inner(eps_h, eps_h), v)*dx)
     eta_h.vector()[:] = eta
 
     return eta_h
@@ -245,15 +260,17 @@ def residual_estimate(w_h):
 
     return eta_h
 
+def energy_norm(u, p):
+    u_mesh = u.function_space().mesh()
+    p_mesh = p.function_space().mesh()
 
-def energy_norm(x):
-    mesh = x.function_space().mesh()
-    u = x.sub(0)
-    p = x.sub(1)
+    assert u_mesh is p_mesh
+
+    mesh = u_mesh
 
     W = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(W)
-
+    
     form = inner(inner(grad(u), grad(u)), v)*dx + inner(inner(p, p), v)*dx
     norm_2 = assemble(form)
     return norm_2
