@@ -52,11 +52,10 @@ def main():
         result = {}
         result['num_cells'] = V.mesh().num_cells()
 
-        w_h, err_disp, err_pres = solve(V)
+        w_h, err = solve(V)
 
-        print('Exact error = {}'.format(err_disp + err_pres))
-        result['exact_error_disp'] = err_disp
-        result['exact_error_pres'] = err_pres
+        print('Exact error = {}'.format(err))
+        result['exact_error'] = err
 
         print('Estimating...')
         eta_disp_h, eta_pres_h = estimate(w_h)
@@ -169,11 +168,10 @@ def solve(V):
     with XDMFFile('output/exact_p.xdmf') as f:
         f.write_checkpoint(p_h_f, 'exact_p')
 
-    local_err_disp_2, local_err_pres_2 = energy_norm(u_diff, p_diff)
-    exact_err_disp = sqrt(sum(local_err_disp_2[:]))
-    exact_err_pres = sqrt(sum(local_err_pres_2[:]))
+    local_exact_err_2 = energy_norm(u_diff, p_diff)
+    exact_err = sqrt(sum(local_exact_err_2[:]))
 
-    return w_h, exact_err_disp, exact_err_pres
+    return w_h, exact_err
 
 
 def estimate(w_h):
