@@ -46,17 +46,17 @@ def main():
     V_el = MixedElement([X_el, M_el, L_el])
 
     results = []
-    for i in range(0, 8):
+    for i in range(0, 5):
         V = FunctionSpace(mesh, V_el)
         
         result = {}
         result['num_cells'] = V.mesh().num_cells()
 
-        w_h = solve(V)
-        '''
+        w_h, err = solve(V)
+
         print('Exact error = {}'.format(err))
         result['exact_error'] = err
-        '''
+
         print('Estimating...')
         eta_h = estimate(w_h)
         result['error_bw'] = np.sqrt(eta_h.vector().sum())
@@ -141,7 +141,7 @@ def solve(V):
         f.write_checkpoint(u_h, 'u_h')
     with XDMFFile('output/pressure.xdmf') as f:
         f.write_checkpoint(p_h, 'p_h')
-    '''
+
     X_el_f = VectorElement('CG', triangle, 3)
     M_el_f = FiniteElement('CG', triangle, 2)
 
@@ -169,8 +169,8 @@ def solve(V):
 
     local_exact_err_2 = energy_norm(u_diff, p_diff)
     exact_err = sqrt(sum(local_exact_err_2[:]))
-    '''
-    return w_h #, exact_err
+
+    return w_h, exact_err
 
 
 def estimate(w_h):
