@@ -46,30 +46,32 @@ def main():
     V_el = MixedElement([X_el, M_el, L_el])
 
     results = []
-    for i in range(0, 8):
+    for i in range(0, 5):
         V = FunctionSpace(mesh, V_el)
         
         result = {}
         result['num_cells'] = V.mesh().num_cells()
 
-        w_h = solve(V)
-        '''
-        print('Exact error = {}'.format(err))
-        result['exact_error'] = err
-        '''
+        w_h, err_disp, err_pres = solve(V)
+
+        print('Exact error = {}'.format(err_disp + err_pres))
+        result['exact_error_disp'] = err_disp
+        result['exact_error_pres'] = err_pres
+
         print('Estimating...')
-        eta_h = estimate(w_h)
-        result['error_bw'] = np.sqrt(eta_h.vector().sum())
-        print('BW = {}'.format(np.sqrt(eta_h.vector().sum())))
+        eta_disp_h, eta_pres_h = estimate(w_h)
+        result['error_bw_disp'] = np.sqrt(eta_disp_h.vector().sum())
+        result['error_bw_pres'] = np.sqrt(eta_pres_h.vector().sum())
+        print('BW = {}'.format(np.sqrt(eta_disp_h.vector().sum()+eta_pres_h.vector().sum())))
         result['hmin'] = mesh.hmin()
         result['hmax'] = mesh.hmax()
         result['num_dofs'] = V.dim()
-
+        '''
         print('Estimating (res)...')
         eta_res = residual_estimate(w_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
-
+        '''
         '''
         print('Marking...')
         markers = fenics_error_estimation.dorfler(eta_h, 0.5)
@@ -87,10 +89,10 @@ def main():
 
         with XDMFFile('output/bank-weiser/pres_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(1), 'p_{}'.format(str(i).zfill(4)))
-
+        '''
         with XDMFFile('output/bank-weiser/eta_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(eta_h, 'eta_{}'.format(str(i).zfill(4)))
-
+        '''
         results.append(result)
 
     if (MPI.comm_world.rank == 0):
@@ -141,7 +143,7 @@ def solve(V):
         f.write_checkpoint(u_h, 'u_h')
     with XDMFFile('output/pressure.xdmf') as f:
         f.write_checkpoint(p_h, 'p_h')
-    '''
+
     X_el_f = VectorElement('CG', triangle, 3)
     M_el_f = FiniteElement('CG', triangle, 2)
 
@@ -167,10 +169,11 @@ def solve(V):
     with XDMFFile('output/exact_p.xdmf') as f:
         f.write_checkpoint(p_h_f, 'exact_p')
 
-    local_exact_err_2 = energy_norm(u_diff, p_diff)
-    exact_err = sqrt(sum(local_exact_err_2[:]))
-    '''
-    return w_h #, exact_err
+    local_err_disp_2, local_err_pres_2 = energy_norm(u_diff, p_diff)
+    exact_err_disp = sqrt(sum(local_err_disp_2[:]))
+    exact_err_pres = sqrt(sum(local_err_pres_2[:]))
+
+    return w_h, exact_err_disp, exact_err_pres
 
 
 def estimate(w_h):
@@ -180,7 +183,7 @@ def estimate(w_h):
     u_h = w_h.sub(0)
     p_h = w_h.sub(1)
 
-    X_element_f = VectorElement('DG', triangle, 3)
+    X_element_f = VectorElement('DG', triangle, 4)
     X_element_g = VectorElement('DG', triangle, 2)
 
     N_X = fenics_error_estimation.create_interpolation(
@@ -226,11 +229,14 @@ def estimate(w_h):
     V_e = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(V_e)
 
-    eta_h = Function(V_e)
-    eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx + inner(inner(eps_h, eps_h), v)*dx)
-    eta_h.vector()[:] = eta
+    eta_disp_h = Function(V_e)
+    eta_pres_h = Function(V_e)
+    eta_disp = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx)
+    eta_pres = assemble(inner(inner(eps_h, eps_h), v)*dx)
+    eta_disp_h.vector()[:] = eta_disp
+    eta_pres_h.vector()[:] = eta_pres
 
-    return eta_h
+    return eta_disp_h, eta_pres_h
 
 
 def residual_estimate(w_h):
@@ -271,9 +277,11 @@ def energy_norm(u, p):
     W = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(W)
     
-    form = inner(inner(grad(u), grad(u)), v)*dx + inner(inner(p, p), v)*dx
-    norm_2 = assemble(form)
-    return norm_2
+    form_disp = inner(inner(grad(u), grad(u)), v)*dx
+    form_pres = inner(inner(p, p), v)*dx
+    norm_disp_2 = assemble(form_disp)
+    norm_pres_2 = assemble(form_pres)
+    return norm_disp_2, norm_pres_2
 
 
 if __name__ == "__main__":

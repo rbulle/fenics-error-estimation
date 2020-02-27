@@ -38,7 +38,6 @@ y = np.log(df_bw['error_bw'].values[-5:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
 print('BW P3\P1 slope =', m)
-'''
 y = np.log(df_bw['error_res'].values[-5:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
@@ -48,7 +47,7 @@ y = np.log(df_bw['exact_error'].values[-5:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
 print('Exact error slope =', m)
-
+'''
 height = 3.50394/1.608
 width = 3.50394
 plt.rcParams.update({'font.size': 8})
@@ -57,21 +56,27 @@ plt.rcParams.update({'figure.figsize': [width, height]})
 plt.rcParams.update({'figure.autolayout': True})
 plt.figure()
 
-plt.loglog(df_bw["num_dofs"], df_bw['error_bw'], '^-',
-           label=r"$\eta_{\mathrm{bw}}$ (P3\P1)", color=dark_map[0])
+plt.loglog(df_bw["num_dofs"], df_bw['error_bw_disp'], '^-',
+           label=r"$\eta_{\mathrm{bw}}$ (disp)", color=dark_map[0])
+'''
 plt.loglog(df_bw["num_dofs"], df_bw['error_res'], '^-',
            label=r"$\eta_{\mathrm{res}}$", color=dark_map[4])
 '''
-plt.loglog(df_bw["num_dofs"], df_bw["exact_error"], '--',
-           label=r"Exact error", color=dark_map[12])
-'''
+plt.loglog(df_bw["num_dofs"], df_bw["exact_error_disp"], '--',
+           label=r"Exact error (disp)", color=dark_map[12])
+plt.loglog(df_bw["num_dofs"], df_bw['error_bw_pres'], '^-',
+           label=r"$\eta_{\mathrm{bw}}$ (pres)", color=dark_map[4])
+
+plt.loglog(df_bw["num_dofs"], df_bw["exact_error_pres"], '--',
+           label=r"Exact error (pres)", color=dark_map[13])
+
 plt.xlabel("Number of dof")
 plt.ylabel("$\eta$")
 
-marker_x, marker_y = marker(df_bw["num_dofs"].values, [df_bw["error_bw"].values, df_bw["error_res"].values], 0.4, 0.05)
+marker_x, marker_y = marker(df_bw["num_dofs"].values, [df_bw["error_bw_disp"].values, df_bw["error_bw_pres"].values, df_bw["exact_error_disp"].values, df_bw['exact_error_pres'].values], 0.4, 0.05)
 annotation.slope_marker((marker_x, marker_y), (-1, 1), invert=True)
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-           ncol=3, mode="expand", borderaxespad=0.)
+           ncol=2, mode="expand", borderaxespad=0.)
 plt.savefig('output/error.pdf')
 
 '''

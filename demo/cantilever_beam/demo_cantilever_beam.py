@@ -34,9 +34,6 @@ parameters["form_compiler"]["cpp_optimize"] = True
 
 E = 210.e9      # Young's modulus
 nu = 0.4999     # Poisson's ratio
-kappa = E*nu/((1. + nu)*(1.-2.*nu))
-Eb = E #/(1.-nu**2)
-nub = nu #/(1.-nu**2)
 mu = E/(2.*(1.-nu))
 lmbda = E*nu/((1.+nu)*(1.-2.*nu))
 Le = 200.e-3     # Length of the beam
@@ -122,9 +119,9 @@ def solve(V):
 
     f = Constant((0., 0.))
 
-    u_exact = Expression(('- ((coef_load*pow(x[1], 2))*x[1]/(6.*Eb*I))*((6.*Le - 3.*x[0])*x[0] + (2. + nub)*pow(x[1], 2) - 3.*pow(D, 2)*0.5*(1.+nub))', '(coef_load*pow(x[1], 2)/(6.*Eb*I))*(3.*nub*pow(x[1],2)*(Le-x[0]) + (3.*Le - x[0])*pow(x[0], 2))'), coef_load = coef_load, Eb=Eb, I=I, Le=Le, nub=nub, D=D, degree = 3, domain=mesh)
+    u_exact = Expression(('- ((coef_load*pow(x[1], 2))*x[1]/(6.*E*I))*((6.*Le - 3.*x[0])*x[0] + (2. + nu)*pow(x[1], 2) - 3.*pow(D, 2)*0.5*(1.+nu))', '(coef_load*pow(x[1], 2)/(6.*E*I))*(3.*nu*pow(x[1],2)*(Le-x[0]) + (3.*Le - x[0])*pow(x[0], 2))'), coef_load = coef_load, E=E, I=I, Le=Le, nu=nu, D=D, degree = 3, domain=mesh)
 
-    p_exact = -Constant(kappa)*ufl.div(u_exact)
+    p_exact = -Constant(lmbda)*ufl.div(u_exact)
 
     (u, p) = TrialFunctions(V)
     (v, q) = TestFunctions(V)
