@@ -19,7 +19,7 @@
 # complexity.  Note also that the original paper uses quadrilateral finite
 # elements. We use the same estimation strategy on triangular finite elements
 # without any issues (see Page 28).
-
+import os
 import pandas as pd
 import numpy as np
 
@@ -27,18 +27,30 @@ from dolfin import *
 import ufl
 
 import fenics_error_estimation
+import mpi4py.MPI
 
 parameters["ghost_mode"] = "shared_facet"
 parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
+current_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 def main():
+    comm = MPI.comm_world
+    mesh = Mesh(comm)
+    try:
+        with XDMFFile(comm, os.path.join(current_dir, 'mesh.xdmf')) as f:
+            f.read(mesh)
+    except:
+        print(
+            "Generate the mesh using `python3 generate_mesh.py` before running this script.")
+        exit()
+    '''
     K = 10
-    mesh = UnitSquareMesh(K, K)
+    mesh = UnitSquareMesh(K, K, diagonal='crossed')
     mesh.coordinates()[:] -= 0.5
     mesh.coordinates()[:] *= 2.
-    
+    '''
     X_el = VectorElement('CG', triangle, 2)
     M_el = FiniteElement('CG', triangle, 1)
     L_el = FiniteElement('R', triangle, 0)
@@ -46,7 +58,7 @@ def main():
     V_el = MixedElement([X_el, M_el, L_el])
 
     results = []
-    for i in range(0, 5):
+    for i in range(0, 6):
         V = FunctionSpace(mesh, V_el)
         
         result = {}

@@ -50,7 +50,7 @@ path = 'bw_P{}_P{}/'.format(k_f, k_g)
 
 def main():
     K = 2
-    mesh = UnitSquareMesh(2*K, K)
+    mesh = UnitSquareMesh(2*K, K, diagonal='left')
 
     mesh.coordinates()[:] *= 1./10.
     mesh.coordinates()[:, 0] *= 2.
@@ -63,6 +63,12 @@ def main():
 
     results = []
     for i in range(0, 4):
+        K *= 2
+        mesh = UnitSquareMesh(2*K, K, diagonal='left')
+
+        mesh.coordinates()[:] *= 1./10.
+        mesh.coordinates()[:, 0] *= 2.
+        mesh.coordinates()[:, 1] -= 0.05
         V = FunctionSpace(mesh, V_el)
 
         result = {}
@@ -91,7 +97,6 @@ def main():
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
         '''
-        mesh = refine(mesh)
         with XDMFFile('output/{}bank-weiser/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(mesh)
 
