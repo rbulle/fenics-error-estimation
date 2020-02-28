@@ -58,19 +58,18 @@ def main():
         result['exact_error'] = err
 
         print('Estimating...')
-        eta_disp_h, eta_pres_h = estimate(w_h)
-        result['error_bw_disp'] = np.sqrt(eta_disp_h.vector().sum())
-        result['error_bw_pres'] = np.sqrt(eta_pres_h.vector().sum())
-        print('BW = {}'.format(np.sqrt(eta_disp_h.vector().sum()+eta_pres_h.vector().sum())))
+        eta  = estimate(w_h)
+        result['error_bw'] = np.sqrt(eta.vector().sum())
+        print('BW = {}'.format(np.sqrt(eta.vector().sum())))
         result['hmin'] = mesh.hmin()
         result['hmax'] = mesh.hmax()
         result['num_dofs'] = V.dim()
-        '''
+
         print('Estimating (res)...')
         eta_res = residual_estimate(w_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
-        '''
+
         '''
         print('Marking...')
         markers = fenics_error_estimation.dorfler(eta_h, 0.5)
@@ -88,10 +87,10 @@ def main():
 
         with XDMFFile('output/bank-weiser/pres_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(1), 'p_{}'.format(str(i).zfill(4)))
-        '''
+
         with XDMFFile('output/bank-weiser/eta_{}.xdmf'.format(str(i).zfill(4))) as f:
-            f.write_checkpoint(eta_h, 'eta_{}'.format(str(i).zfill(4)))
-        '''
+            f.write_checkpoint(eta, 'eta_{}'.format(str(i).zfill(4)))
+
         results.append(result)
 
     if (MPI.comm_world.rank == 0):
@@ -227,15 +226,11 @@ def estimate(w_h):
     V_e = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(V_e)
 
-    eta_disp_h = Function(V_e)
-    eta_pres_h = Function(V_e)
-    eta_disp = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx)
-    eta_pres = assemble(inner(inner(eps_h, eps_h), v)*dx)
-    eta_disp_h.vector()[:] = eta_disp
-    eta_pres_h.vector()[:] = eta_pres
+    eta_h = Function(V_e)
+    eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx + inner(inner(eps_h, eps_h), v)*dx)
+    eta_h.vector()[:] = eta
 
-    return eta_disp_h, eta_pres_h
-
+    return eta_h
 
 def residual_estimate(w_h):
     """Residual estimator described in Section 3.1 of Liao and Silvester"""
@@ -275,11 +270,9 @@ def energy_norm(u, p):
     W = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(W)
     
-    form_disp = inner(inner(grad(u), grad(u)), v)*dx
-    form_pres = inner(inner(p, p), v)*dx
-    norm_disp_2 = assemble(form_disp)
-    norm_pres_2 = assemble(form_pres)
-    return norm_disp_2, norm_pres_2
+    form = inner(inner(grad(u), grad(u)), v)*dx + inner(inner(p, p), v)*dx
+    norm_2 = assemble(form)
+    return norm_2
 
 
 if __name__ == "__main__":

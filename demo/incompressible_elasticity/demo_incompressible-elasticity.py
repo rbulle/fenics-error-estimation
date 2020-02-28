@@ -37,13 +37,13 @@ nu = .499    # Poisson ratio
 lmbda = 2.*mu*nu/(1.-2.*nu)  # Second Lamé coefficient
 
 # k_f\k_g for bw definition
-k_f = 3
-k_g = 2
+k_f = 4
+k_g = 1
 
-path = 'bw_P{}_P{}/'.format(k_f, k_g)
+path = 'bank-weiser_P{}_P{}/'.format(k_f, k_g)
 
 def main():
-    K = 5
+    K = 10
     mesh = UnitSquareMesh(K, K)
 
     X_el = VectorElement('CG', triangle, 2)
@@ -52,7 +52,7 @@ def main():
     V_el = MixedElement([X_el, M_el])
 
     results = []
-    for i in range(0, 15):
+    for i in range(0, 5):
         V = FunctionSpace(mesh, V_el)
 
         result = {}
@@ -74,12 +74,13 @@ def main():
         eta_res = residual_estimate(w_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
-
+        '''
         print('Marking...')
         markers = fenics_error_estimation.dorfler(eta_h, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
-
+        '''
+        mesh = refine(mesh)
         with XDMFFile('output/{}bank-weiser/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
             f.write(mesh)
 

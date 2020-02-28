@@ -76,7 +76,7 @@ plt.loglog(df_bw_P3_P2["num_dofs"], df_bw_P3_P2['error_bw'], '^-',
            label=r"$\eta_{\mathrm{bw}}$ (P3\P2)", color=dark_map[1])
 
 plt.loglog(df_bw_P4_P2["num_dofs"], df_bw_P4_P2['error_bw'], '^-',
-           label=r"$\eta_{\mathrm{bw}}$ (P3\P1)", color=dark_map[2])
+           label=r"$\eta_{\mathrm{bw}}$ (P4\P2)", color=dark_map[2])
 
 plt.loglog(df_bw_P3_P1["num_dofs"], df_bw_P3_P1['error_res'], '^-',
            label=r"$\eta_{\mathrm{res}}$", color=dark_map[4])
@@ -112,6 +112,6 @@ plt.hlines(1., xmin, xmax)
 plt.xlabel('Refinement steps')
 plt.ylabel('Efficiencies')
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-           ncol=3, mode="expand", borderaxespad=0.)
+           ncol=2, mode="expand", borderaxespad=0.)
 plt.savefig('output/efficiencies.pdf')
 
