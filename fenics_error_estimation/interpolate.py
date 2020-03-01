@@ -79,6 +79,7 @@ def create_interpolation(element_f, element_g):
     eigs, P = np.linalg.eig(N)
     eigs = np.real(eigs)
     P = np.real(P)
+    print('P-1NP =', np.round(np.linalg.inv(P)@(N@P), 2))
     assert(np.count_nonzero(np.isclose(eigs, 1.0)) == V_f_dim - V_g_dim)
     assert(np.count_nonzero(np.isclose(eigs, 0.0)) == V_g_dim)
     mask = np.abs(eigs) > 0.5
@@ -86,6 +87,7 @@ def create_interpolation(element_f, element_g):
     # Reduce N to get a rectangular matrix in order to reduce the linear system
     # dimensions
     N_red = P[:, mask]
+    print('N_red =', N_red)
     assert(not np.all(np.iscomplex(N_red)))
     assert(np.linalg.matrix_rank(N_red) == V_f_dim - V_g_dim)
 
