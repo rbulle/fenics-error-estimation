@@ -40,7 +40,7 @@ void projected_local_solver(dolfin::Function& e,
     // Local element tensors, solver.
     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
                 Eigen::RowMajor> A_e, A_e_0, b_e, b_e_0, x_e, x_e_0, NT;
-    Eigen::LLT<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
+    Eigen::FullPivLU<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
                              Eigen::RowMajor>> cholesky;
 
     // To store global error result.

@@ -26,6 +26,7 @@ import numpy as np
 from dolfin import *
 import ufl
 
+from fenics_error_estimation.interpolate import create_interpolation, create_interpolation_compounded
 import fenics_error_estimation
 
 parameters["ghost_mode"] = "shared_facet"
@@ -35,12 +36,6 @@ parameters["form_compiler"]["cpp_optimize"] = True
 mu = 100.  # First Lamé coefficien
 nu = .499    # Poisson ratio
 lmbda = 2.*mu*nu/(1.-2.*nu)  # Second Lamé coefficient
-
-# k_f\k_g for bw definition
-k_f = 4
-k_g = 1
-
-path = 'bank-weiser_P{}_P{}/'.format(k_f, k_g)
 
 def main():
     K = 10
@@ -81,23 +76,23 @@ def main():
         mesh = refine(mesh, markers, redistribute=True)
         '''
         mesh = refine(mesh)
-        with XDMFFile('output/{}bank-weiser/mesh_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+        with XDMFFile('output/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write(mesh)
 
-        with XDMFFile('output/{}bank-weiser/disp_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+        with XDMFFile('output/disp_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(0), 'u_{}'.format(str(i).zfill(4)))
 
-        with XDMFFile('output/{}bank-weiser/pres_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+        with XDMFFile('output/pres_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(1), 'p_{}'.format(str(i).zfill(4)))
 
-        with XDMFFile('output/{}bank-weiser/eta_{}.xdmf'.format(path, str(i).zfill(4))) as f:
+        with XDMFFile('output/eta_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(eta_h, 'eta_{}'.format(str(i).zfill(4)))
 
         results.append(result)
 
     if (MPI.comm_world.rank == 0):
         df = pd.DataFrame(results)
-        df.to_pickle('output/{}results.pkl'.format(path))
+        df.to_pickle('output/results.pkl')
         print(df)
 
 
@@ -172,11 +167,12 @@ def estimate(w_h):
     u_h = w_h.sub(0)
     p_h = w_h.sub(1)
 
-    X_element_f = VectorElement('DG', triangle, k_f)
-    X_element_g = VectorElement('DG', triangle, k_g)
+    X_element_f = VectorElement('DG', triangle, 3)
+    S_element_f = FiniteElement('DG', triangle, 3)
+    S_element_g = FiniteElement('DG', triangle, 1)
 
-    N_X = fenics_error_estimation.create_interpolation(
-        X_element_f, X_element_g)
+    N_X = create_interpolation_compounded(
+        S_element_f, S_element_g)
 
     X_f = FunctionSpace(mesh, X_element_f)
 

@@ -26,6 +26,7 @@ import numpy as np
 from dolfin import *
 import ufl
 
+from fenics_error_estimation.interpolate import create_interpolation, create_interpolation_compounded
 import fenics_error_estimation
 import mpi4py.MPI
 
@@ -34,23 +35,12 @@ parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
 current_dir = os.path.dirname(os.path.realpath(__file__))
 
-
 def main():
-    comm = MPI.comm_world
-    mesh = Mesh(comm)
-    try:
-        with XDMFFile(comm, os.path.join(current_dir, 'mesh.xdmf')) as f:
-            f.read(mesh)
-    except:
-        print(
-            "Generate the mesh using `python3 generate_mesh.py` before running this script.")
-        exit()
-    '''
     K = 10
     mesh = UnitSquareMesh(K, K, diagonal='crossed')
     mesh.coordinates()[:] -= 0.5
     mesh.coordinates()[:] *= 2.
-    '''
+    
     X_el = VectorElement('CG', triangle, 2)
     M_el = FiniteElement('CG', triangle, 1)
     L_el = FiniteElement('R', triangle, 0)
@@ -58,7 +48,7 @@ def main():
     V_el = MixedElement([X_el, M_el, L_el])
 
     results = []
-    for i in range(0, 6):
+    for i in range(0, 5):
         V = FunctionSpace(mesh, V_el)
         
         result = {}
@@ -91,23 +81,23 @@ def main():
 
         mesh = refine(mesh)
 
-        with XDMFFile('output/bank-weiser/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write(mesh)
 
-        with XDMFFile('output/bank-weiser/disp_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/velo_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(0), 'u_{}'.format(str(i).zfill(4)))
 
-        with XDMFFile('output/bank-weiser/pres_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/pres_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(1), 'p_{}'.format(str(i).zfill(4)))
 
-        with XDMFFile('output/bank-weiser/eta_{}.xdmf'.format(str(i).zfill(4))) as f:
+        with XDMFFile('output/eta_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(eta, 'eta_{}'.format(str(i).zfill(4)))
 
         results.append(result)
 
     if (MPI.comm_world.rank == 0):
         df = pd.DataFrame(results)
-        df.to_pickle('output/bank-weiser/results.pkl')
+        df.to_pickle('output/results.pkl')
         print(df)
 
 
@@ -192,11 +182,12 @@ def estimate(w_h):
     u_h = w_h.sub(0)
     p_h = w_h.sub(1)
 
-    X_element_f = VectorElement('DG', triangle, 4)
-    X_element_g = VectorElement('DG', triangle, 2)
+    X_element_f = VectorElement('DG', triangle, 3)
+    S_element_f = FiniteElement('DG', triangle, 3)
+    S_element_g = FiniteElement('DG', triangle, 1)
 
-    N_X = fenics_error_estimation.create_interpolation(
-        X_element_f, X_element_g)
+    N_X = create_interpolation_compounded(
+        S_element_f, S_element_g)
 
     X_f = FunctionSpace(mesh, X_element_f)
 
@@ -217,11 +208,10 @@ def estimate(w_h):
     L_X_e = inner(R_T, v_X)*dx - inner(R_E, 2.*avg(v_X))*dS
 
     e_h = fenics_error_estimation.estimate(a_X_e, L_X_e, N_X, bcs)
-
     M_element_f = FiniteElement('DG', triangle, 2)
     M_element_g = FiniteElement('DG', triangle, 1)
 
-    N_M = fenics_error_estimation.create_interpolation(
+    N_M = create_interpolation(
         M_element_f, M_element_g)
    
     M_f = FunctionSpace(mesh, M_element_f)

@@ -4,6 +4,7 @@ import scipy.linalg as sp
 from dolfin import *
 
 from fenics_error_estimation import create_interpolation, estimate
+from fenics_error_estimation.estimate import estimate_python
 
 from dolfin.fem.assembling import _create_dolfin_form
 import fenics_error_estimation.cpp as cpp
@@ -38,7 +39,7 @@ def main():
         f_1 = f.sub(1)
         L = inner(f, v)*dx
 
-        e = estimate(a, L, N_vec)
+        e = estimate_python(a, L, N_vec)
 
         dofs_0 = V_f.sub(0).dofmap().dofs()
         dofs_1 = V_f.sub(1).dofmap().dofs()
