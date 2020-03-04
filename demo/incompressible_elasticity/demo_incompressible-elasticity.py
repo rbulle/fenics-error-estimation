@@ -1,7 +1,7 @@
 ## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
 ## SPDX-License-Identifier: LGPL-3.0-or-later
 
-# Mixed robust incompressible linear elasticity error estimator from Khan,
+# Mixed robust nearly-incompressible linear elasticity error estimator from Khan,
 # Powell and Silvester (2019) https://doi.org/10.1002/nme.6040. We solve
 # the problem from Carstensen and Gedicke https://doi.org/10.1016/j.cma.2015.10.001.
 #
@@ -22,6 +22,7 @@
 
 import pandas as pd
 import numpy as np
+import scipy as sp
 
 from dolfin import *
 import ufl
@@ -47,7 +48,7 @@ def main():
     V_el = MixedElement([X_el, M_el])
 
     results = []
-    for i in range(0, 5):
+    for i in range(0, 10):
         V = FunctionSpace(mesh, V_el)
 
         result = {}
@@ -69,13 +70,12 @@ def main():
         eta_res = residual_estimate(w_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
-        '''
+
         print('Marking...')
         markers = fenics_error_estimation.dorfler(eta_h, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
-        '''
-        mesh = refine(mesh)
+
         with XDMFFile('output/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write(mesh)
 
@@ -137,12 +137,6 @@ def solve(V):
     with XDMFFile('output/pressure.xdmf') as f:
         f.write_checkpoint(p_h, 'p_h')
 
-    '''
-    u_exact_h = project(w_exact, V_u)
-    with XDMFFile('output/exact_displacement.xdmf') as xdmf:
-        xdmf.write_checkpoint(u_exact_h, 'u_exact_h')
-    '''
-
     X_el_f = VectorElement('CG', triangle, 3)
     M_el_f = FiniteElement('CG', triangle, 2)
 
@@ -171,8 +165,9 @@ def estimate(w_h):
     S_element_f = FiniteElement('DG', triangle, 3)
     S_element_g = FiniteElement('DG', triangle, 1)
 
-    N_X = create_interpolation_compounded(
+    N_S = create_interpolation(
         S_element_f, S_element_g)
+    N_X = sp.linalg.block_diag(N_S, N_S)
 
     X_f = FunctionSpace(mesh, X_element_f)
 
@@ -208,7 +203,7 @@ def estimate(w_h):
     q_M_f = TestFunction(M_f)
 
     a_M_e = rho_d**(-1)*inner(p_M_f, q_M_f)*dx
-    
+
     r_K = div(u_h) + (1./lmbda)*p_h
     L_M_e = inner(r_K, q_M_f)*dx
 
