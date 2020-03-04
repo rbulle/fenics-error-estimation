@@ -196,14 +196,30 @@ def estimate(w_h):
 
     e_h = fenics_error_estimation.estimate(a_X_e, L_X_e, N_X, bcs)
 
+    M_element_f = FiniteElement('DG', triangle, 2)
+    M_element_g = FiniteElement('DG', triangle, 1)
+
+    N_M = create_interpolation(
+        M_element_f, M_element_g)
+
+    M_f = FunctionSpace(mesh, M_element_f)
+
+    p_M_f = TrialFunction(M_f)
+    q_M_f = TestFunction(M_f)
+
+    a_M_e = rho_d**(-1)*inner(p_M_f, q_M_f)*dx
+    
     r_K = div(u_h) + (1./lmbda)*p_h
+    L_M_e = inner(r_K, q_M_f)*dx
+
+    eps_h = fenics_error_estimation.estimate(a_M_e, L_M_e, N_M)
 
     V_e = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(V_e)
 
     eta_h = Function(V_e)
     eta = assemble(2.*mu*inner(inner(grad(e_h), grad(e_h)), v)*dx + \
-          rho_d*inner(inner(r_K, r_K), v)*dx)
+          rho_d**(-1)*inner(inner(eps_h, eps_h), v)*dx)
     eta_h.vector()[:] = eta
 
     return eta_h
