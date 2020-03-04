@@ -1,46 +1,31 @@
-## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
-## SPDX-License-Identifier: LGPL-3.0-or-later
+# Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
-# Mixed robust incompressible linear elasticity error estimator from Khan,
-# Powell and Silvester (2019) https://doi.org/10.1002/nme.6040. We solve
-# the problem from Carstensen and Gedicke https://doi.org/10.1016/j.cma.2015.10.001.
-#
-# We implement the Poisson problem local estimator detailed in Section 3.5.
-# Somewhat remarkably, despite the complexity of the mixed formulation, an
-# highly efficient implicit estimator is derived involving the solution of two
-# Poisson problems on a special local finite element space. An additional
-# explicit estimator computing related to the pressure can be computed. No
-# local inf-sup condition must be satisfied by the estimation problem.
+# Mixed robust Stokes error estimator from Liao and Silvester (2012)
+# https://doi.org/10.1016/j.apnum.2010.05.003.
 
-# Differences with the presentation in Khan et al.:
-# We do not split Equation 50a into two Poisson sub-problems. Instead, we solve
-# it as a single monolithic system. In practice we found the performance
-# benefits of the splitting negligible, especially given the additional
-# complexity.  Note also that the original paper uses quadrilateral finite
-# elements. We use the same estimation strategy on triangular finite elements
-# without any issues (see Page 28).
 import os
 import pandas as pd
 import numpy as np
+import scipy as sp
 
 from dolfin import *
 import ufl
 
-from fenics_error_estimation.interpolate import create_interpolation, create_interpolation_compounded
 import fenics_error_estimation
-import mpi4py.MPI
+from fenics_error_estimation.interpolate import create_interpolation
 
 parameters["ghost_mode"] = "shared_facet"
 parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
-current_dir = os.path.dirname(os.path.realpath(__file__))
+
 
 def main():
     K = 10
     mesh = UnitSquareMesh(K, K, diagonal='crossed')
     mesh.coordinates()[:] -= 0.5
     mesh.coordinates()[:] *= 2.
-    
+
     X_el = VectorElement('CG', triangle, 2)
     M_el = FiniteElement('CG', triangle, 1)
     L_el = FiniteElement('R', triangle, 0)
@@ -48,9 +33,9 @@ def main():
     V_el = MixedElement([X_el, M_el, L_el])
 
     results = []
-    for i in range(0, 5):
+    for i in range(0, 10):
         V = FunctionSpace(mesh, V_el)
-        
+
         result = {}
         result['num_cells'] = V.mesh().num_cells()
 
@@ -59,27 +44,23 @@ def main():
         print('Exact error = {}'.format(err))
         result['exact_error'] = err
 
-        print('Estimating...')
-        eta  = estimate(w_h)
+        print('Estimating (Liao and Silvester)...')
+        eta = estimate(w_h)
         result['error_bw'] = np.sqrt(eta.vector().sum())
         print('BW = {}'.format(np.sqrt(eta.vector().sum())))
         result['hmin'] = mesh.hmin()
         result['hmax'] = mesh.hmax()
         result['num_dofs'] = V.dim()
 
-        print('Estimating (res)...')
+        print('Estimating (residual)...')
         eta_res = residual_estimate(w_h)
         result['error_res'] = np.sqrt(eta_res.vector().sum())
         print('Res = {}'.format(np.sqrt(eta_res.vector().sum())))
 
-        '''
         print('Marking...')
-        markers = fenics_error_estimation.dorfler(eta_h, 0.5)
+        markers = fenics_error_estimation.dorfler(eta, 0.5)
         print('Refining...')
         mesh = refine(mesh, markers, redistribute=True)
-        '''
-
-        mesh = refine(mesh)
 
         with XDMFFile('output/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write(mesh)
@@ -108,9 +89,11 @@ def solve(V):
 
     f = Constant((0., 0.))
 
-    w_exact = Expression(('20.*x[0]*pow(x[1], 3)', '5.*pow(x[0], 4)-5.*pow(x[1], 4)', '60.*pow(x[0], 2)*x[1]- 20.*pow(x[1], 3)'), degree = 4)
+    w_exact = Expression(('20.*x[0]*pow(x[1], 3)', '5.*pow(x[0], 4)-5.*pow(x[1], 4)',
+                          '60.*pow(x[0], 2)*x[1]- 20.*pow(x[1], 3)'), degree=4)
 
-    u_exact = Expression(('20.*x[0]*pow(x[1], 3)', '5.*pow(x[0], 4)-5.*pow(x[1], 4)'), degree = 4)
+    u_exact = Expression(
+        ('20.*x[0]*pow(x[1], 3)', '5.*pow(x[0], 4)-5.*pow(x[1], 4)'), degree=4)
     p_exact = Expression('60.*pow(x[0], 2)*x[1]- 20.*pow(x[1], 3)', degree=4)
     (u, p, u_l) = TrialFunctions(V)
     (v, q, v_l) = TestFunctions(V)
@@ -186,8 +169,8 @@ def estimate(w_h):
     S_element_f = FiniteElement('DG', triangle, 3)
     S_element_g = FiniteElement('DG', triangle, 1)
 
-    N_X = create_interpolation_compounded(
-        S_element_f, S_element_g)
+    N_S = create_interpolation(S_element_f, S_element_g)
+    N_X = sp.linalg.block_diag(N_S, N_S)
 
     X_f = FunctionSpace(mesh, X_element_f)
 
@@ -208,12 +191,13 @@ def estimate(w_h):
     L_X_e = inner(R_T, v_X)*dx - inner(R_E, 2.*avg(v_X))*dS
 
     e_h = fenics_error_estimation.estimate(a_X_e, L_X_e, N_X, bcs)
+
     M_element_f = FiniteElement('DG', triangle, 2)
     M_element_g = FiniteElement('DG', triangle, 1)
 
     N_M = create_interpolation(
         M_element_f, M_element_g)
-   
+
     M_f = FunctionSpace(mesh, M_element_f)
 
     p_M_f = TrialFunction(M_f)
@@ -229,10 +213,12 @@ def estimate(w_h):
     v = TestFunction(V_e)
 
     eta_h = Function(V_e)
-    eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)*dx + inner(inner(eps_h, eps_h), v)*dx)
+    eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)
+                   * dx + inner(inner(eps_h, eps_h), v)*dx)
     eta_h.vector()[:] = eta
 
     return eta_h
+
 
 def residual_estimate(w_h):
     """Residual estimator described in Section 3.1 of Liao and Silvester"""
@@ -255,11 +241,12 @@ def residual_estimate(w_h):
 
     eta_h = Function(V)
 
-    eta = assemble(h**2*R_T**2*v*dx + r_T**
+    eta = assemble(h**2*R_T**2*v*dx + r_T **
                    2*v*dx + avg(h)*R_E**2*avg(v)*dS)
     eta_h.vector()[:] = eta
 
     return eta_h
+
 
 def energy_norm(u, p):
     u_mesh = u.function_space().mesh()
@@ -271,7 +258,7 @@ def energy_norm(u, p):
 
     W = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(W)
-    
+
     form = inner(inner(grad(u), grad(u)), v)*dx + inner(inner(p, p), v)*dx
     norm_2 = assemble(form)
     return norm_2
