@@ -27,7 +27,7 @@ import scipy as sp
 from dolfin import *
 import ufl
 
-from fenics_error_estimation.interpolate import create_interpolation, create_interpolation_compounded
+from fenics_error_estimation.interpolate import create_interpolation
 import fenics_error_estimation
 
 parameters["ghost_mode"] = "shared_facet"
