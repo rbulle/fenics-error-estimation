@@ -33,7 +33,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 20):
+    for i in range(0, 15):
         result = {}
 
         V = FunctionSpace(mesh, "CG", k)
