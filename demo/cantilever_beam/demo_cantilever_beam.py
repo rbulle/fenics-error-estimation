@@ -40,7 +40,6 @@ Le = 200.e-3     # Length of the beam
 D = 100.e-3     # height of the beam
 I = D**3/12.  # Second-area moment
 coef_load = (9.*E*I*1.e9)/(50.*Le**3)    # Traction load coefficient
-P = - 5e3
 
 # k_f\k_g for bw definition
 k_f = 3
@@ -124,7 +123,9 @@ def solve(V):
 
     f = Constant((0., 0.))
 
-    u_exact = Expression(('- ((coef_load*pow(x[1], 2))*x[1]/(6.*E*I))*((6.*Le - 3.*x[0])*x[0] + (2. + nu)*pow(x[1], 2) - 3.*pow(D, 2)*0.5*(1.+nu))', '(coef_load*pow(x[1], 2)/(6.*E*I))*(3.*nu*pow(x[1],2)*(Le-x[0]) + (3.*Le - x[0])*pow(x[0], 2))'), coef_load = coef_load, E=E, I=I, Le=Le, nu=nu, D=D, degree = 3, domain=mesh)
+    u_exact = Expression(('((pow(D, 2)/4. - pow(x[1], 2))*x[1]/(E*I))*((6.*Le-3.*x[0])*x[0] + (2. + nu)*pow(x[1], 2) - (3.*pow(D, 2)/2.)*(1.+nu))',\
+                          '-(coef_load*(pow(D, 2)/4. - pow(x[1], 2))/(6.*E*I))*(3.*nu*pow(x[1], 2)*(Le-x[0]) + (3.*Le - x[0])*pow(x[0], 2))'),\
+                         coef_load = coef_load, E=E, I=I, Le=Le, nu=nu, D=D, degree = 5, domain=mesh)
 
     p_exact = -Constant(lmbda)*ufl.div(u_exact)
 
@@ -157,7 +158,7 @@ def solve(V):
 
     ds_n = Measure('ds', domain = mesh, subdomain_data = boundaryfct)
 
-    t = Expression(('0.', '- (P/(2.*I))*(pow(D, 2)/4. - pow(x[1], 2))'), P=P, D=D, I=I, degree = 2)
+    t = Expression(('0.', '- ((coef_load*(pow(D, 2)/4.-pow(x[1],2)))/(2.*I))*(pow(D, 2)/4. - pow(x[1], 2))'), coef_load=coef_load, D=D, I=I, degree = 2)
     L = inner(f, v)*dx + inner(t, v)*ds_n(1)
 
     A, b = assemble_system(B, L, bcs=bcs)
