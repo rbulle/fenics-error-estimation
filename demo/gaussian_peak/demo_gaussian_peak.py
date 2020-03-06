@@ -1,14 +1,10 @@
 ## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
 ## SPDX-License-Identifier: LGPL-3.0-or-later
-import os
-
 import numpy as np
 import pandas as pd
 
 from dolfin import *
 import ufl
-
-import mpi4py.MPI
 
 import fenics_error_estimation
 
@@ -16,60 +12,47 @@ parameters['ghost_mode'] = 'shared_facet'
 
 k = 1
 
-comm = MPI.comm_world
-mesh = Mesh(comm)
-try:
-    with XDMFFile(comm, os.path.join(current_dir, 'mesh.xdmf')) as f:
-        f.read(mesh)
-except:
-    print(
-        'Generate the mesh using `python3 generate_mesh.py` before running this script.')
-    exit()
-
-# Exact solution
-x = ufl.SpatialCoordinate(mesh)
-
-# Exact solution
-alpha = 1000
-m = [0.25, 0.5]
-u_exact = ufl.exp(-alpha*((x[0]-m[0])**2+(x[1]-m[1])**2))
-params['exact solution'] = u_exact
-
-# Data
-f = - ufl.div(ufl.grad(u_exact))
-params['force data'] = f
-
 def main():
+    mesh = Mesh()
+    try:
+        with XDMFFile(MPI.comm_world, 'mesh.xdmf') as f:
+            f.read(mesh)
+    except:
+        print(
+            'Generate the mesh using `python3 generate_mesh.py` before running this script.')
+        exit()
+
     results = []
     for i in range(0, 15):
         result = {}
-
+        
+        u_exact, f = pbm_data(mesh)
         V = FunctionSpace(mesh, "CG", k)
-        u_h = solve(V)
-        with XDMFFile("output/u_h_{}.xdmf".format(str(i).zfill(4))) as f:
-            f.write(u_h)
-        result["error"] = errornorm(u_exact, u_h, "H10")
+        u_h = solve(V, u_exact, f)
+        with XDMFFile("output/u_h_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write(u_h)
+        result['error'] = assemble(inner(grad(u_exact - u_h), grad(u_exact - u_h))*dx)
 
-        u_exact_V = interpolate(u_exact, u_h.function_space())
+        u_exact_V = project(u_exact, u_h.function_space())
         u_exact_V.rename("u_exact_V", "u_exact_V")
-        with XDMFFile("output/u_exact_{}.xdmf".format(str(i).zfill(4))) as f:
-            f.write(u_exact_V)
+        with XDMFFile("output/u_exact_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write(u_exact_V)
 
-        eta_bw = bw_estimate(u_h)
-        with XDMFFile("output/eta_bw_{}.xdmf".format(str(i).zfill(4))) as f:
-            f.write_checkpoint(eta_bw, "eta_bw")
+        eta_bw = bw_estimate(u_h, f)
+        with XDMFFile("output/eta_bw_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write_checkpoint(eta_bw, "eta_bw")
 
         result["error_bw"] = np.sqrt(eta_bw.vector().sum())
 
-        eta_zz = zz_estimate(u_h)
-        with XDMFFile("output/eta_zz_{}.xdmf".format(str(i).zfill(4))) as f:
-            f.write_checkpoint(eta_zz, "eta_zz")
+        eta_zz = zz_estimate(u_h, f)
+        with XDMFFile("output/eta_zz_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write_checkpoint(eta_zz, "eta_zz")
 
         result["error_zz"] = np.sqrt(eta_zz.vector().sum())
         
-        eta_res = residual_estimate(u_h)
-        with XDMFFile("output/eta_res_{}.xdmf".format(str(i).zfill(4))) as f:
-            f.write_checkpoint(eta_res, "eta_res")
+        eta_res = residual_estimate(u_h, f)
+        with XDMFFile("output/eta_res_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write_checkpoint(eta_res, "eta_res")
 
         result["error_res"] = np.sqrt(eta_res.vector().sum())
 
@@ -78,18 +61,18 @@ def main():
         v = TestFunction(V_e)
         eta_exact.vector()[:] = assemble(inner(inner(grad(u_h - u_exact_V), grad(u_h - u_exact_V)), v)*dx(mesh))
         result["error_exact"] = np.sqrt(eta_exact.vector().sum())
-        with XDMFFile("output/eta_exact_{}.xdmf".format(str(i).zfill(4))) as f:
-            f.write(eta_exact)
+        with XDMFFile("output/eta_exact_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write(eta_exact)
 
-        result["hmin"] = comm.reduce(mesh.hmin(), op=mpi4py.MPI.MIN, root=0)
-        result["hmax"] = comm.reduce(mesh.hmax(), op=mpi4py.MPI.MAX, root=0)
+        result["hmin"] = mesh.hmin()
+        result["hmax"] = mesh.hmax()
         result["num_dofs"] = V.dim()
 
         markers = fenics_error_estimation.dorfler(eta_bw, 0.5)
         mesh = refine(mesh, markers, redistribute=True)
 
-        with XDMFFile("output/mesh_{}.xdmf".format(str(i).zfill(4))) as f:
-            f.write(mesh)
+        with XDMFFile("output/mesh_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write(mesh)
 
         results.append(result)
 
@@ -98,7 +81,7 @@ def main():
         df.to_pickle("output/results.pkl")
         print(df)
 
-def solve(V):
+def solve(V, u_exact, f):
     u = TrialFunction(V)
     v = TestFunction(V)
 
@@ -112,13 +95,13 @@ def solve(V):
 
     A, b = assemble_system(a, L, bcs=bcs)
 
-    u_h = Funtion(V, name='u_h')
-    solve = PETScLUSolver('mumps')
+    u_h = Function(V, name='u_h')
+    solver = PETScLUSolver('mumps')
     solver.solve(A, u_h.vector(), b)
 
     return u_h
 
-def bw_estimate(u_h):
+def bw_estimate(u_h, f):
     mesh = u_h.function_space().mesh()
 
     element_f = FiniteElement("DG", triangle, k + 2)
@@ -150,7 +133,7 @@ def bw_estimate(u_h):
     eta_h.vector()[:] = eta
     return eta_h
 
-def ZZ_estimate(u_h):
+def zz_estimate(u_h, f):
     mesh = u_h.function_space().mesh()
     k = u_h.ufl_element().degree()
 
@@ -191,7 +174,7 @@ def ZZ_estimate(u_h):
     eta_h.vector()[:] = eta
     return eta_h
 
-def residual_estimate(u_h):
+def residual_estimate(u_h, f):
     mesh = u_h.function_space().mesh()
 
     n = FacetNormal(mesh)
@@ -206,9 +189,26 @@ def residual_estimate(u_h):
 
     R = h_T**2*inner(inner(r,r),v_e)*dx + avg(h_E)*inner(inner(J_h, J_h), avg(v_e))*dS
 
-    eta_h = assemble(R)[:]
+    # Computation of local error indicator
+    V_e = FunctionSpace(mesh, "DG", 0)
+
+    eta_h = Function(V_e)
+    eta = assemble(R)[:]
+    eta_h.vector()[:] = eta
     return eta_h
 
+def pbm_data(mesh):
+    # Exact solution
+    x = ufl.SpatialCoordinate(mesh)
+
+    # Exact solution
+    alpha = 1000
+    m = [0.25, 0.5]
+    u_exact = ufl.exp(-alpha*((x[0]-m[0])**2+(x[1]-m[1])**2))
+
+    # Data
+    f = - ufl.div(ufl.grad(u_exact))
+    return u_exact, f
 if __name__ == "__main__":
     main()
 
