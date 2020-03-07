@@ -3,7 +3,7 @@
 import pygmsh as pg
 import meshio
 
-lc = 0.5
+lc = 0.3
 geom = pg.built_in.Geometry()
 
 # Points

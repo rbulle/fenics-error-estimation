@@ -31,7 +31,7 @@ def main():
         u_h = solve(V, u_exact, f)
         with XDMFFile("output/u_h_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write(u_h)
-        result['error'] = assemble(inner(grad(u_exact - u_h), grad(u_exact - u_h))*dx)
+        result['error'] = sqrt(assemble(inner(grad(u_exact - u_h), grad(u_exact - u_h))*dx))
 
         u_exact_V = project(u_exact, u_h.function_space())
         u_exact_V.rename("u_exact_V", "u_exact_V")
@@ -116,7 +116,7 @@ def bw_estimate(u_h, f, verf=False):
                     + FiniteElement('DG', triangle, 2)
         element_g = FiniteElement('DG', triangle, 1)
     else:
-        element_f = FiniteElement("DG", triangle, k + 1)
+        element_f = FiniteElement("DG", triangle, k+1)
         element_g = FiniteElement("DG", triangle, k)
 
     N = fenics_error_estimation.create_interpolation(element_f, element_g)
@@ -213,13 +213,14 @@ def pbm_data(mesh):
     # Exact solution
     x = ufl.SpatialCoordinate(mesh)
 
+    r = ufl.sqrt(x[0]**2 + x[1]**2)
+    theta = ufl.mathfunctions.Atan2(x[1], x[0])
+
     # Exact solution
-    alpha = 1000
-    m = [0.25, 0.5]
-    u_exact = ufl.exp(-alpha*((x[0]-m[0])**2+(x[1]-m[1])**2))
+    u_exact = r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.))
 
     # Data
-    f = - ufl.div(ufl.grad(u_exact))
+    f = Constant(0.)
     return u_exact, f
 if __name__ == "__main__":
     main()
