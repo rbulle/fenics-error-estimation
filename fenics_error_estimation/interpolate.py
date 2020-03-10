@@ -4,7 +4,7 @@ import numpy as np
 import scipy.linalg as sp
 from dolfin import *
 
-def create_interpolation(element_f, element_g):
+def create_interpolation(element_f, element_g, dof_list=None):
     """Construct a projection operator.
 
     Given local nodal finite element spaces V_f (element_f) and V_g (element_g)
@@ -57,7 +57,12 @@ def create_interpolation(element_f, element_g):
     V_f_dim = V_f.dim()
     V_g_dim = V_g.dim()
 
-    assert(V_f_dim > V_g_dim)
+    if dof_list is None:
+        dim_coarse = V_g.dim()
+    else:
+        dim_coarse = len(dof_list)
+ 
+    assert(V_f_dim > dim_coarse)
 
     w = Function(V_f)
 
@@ -67,9 +72,19 @@ def create_interpolation(element_f, element_g):
     # Using "Function" prior to create_transfer_matrix, initialises PETSc for
     # unknown reason...
 
-    # Create a square matrix for interpolation from fine space to coarse one
-    # with coarse space seen as a subspace of the fine one
-    G = G_2@G_1
+    if dof_list is not None:
+        # Create a square matrix for interpolation from fine space to coarse
+        # one with coarse space seen as a subspace of the fine one, the coarse
+        # space being defined according to prescribed dof list
+        R = np.eye(V_g.dim())
+        new_list = np.setdiff1d(np.arange(V_g.dim()), dof_list)
+        R_red = np.delete(R, new_list, 0)
+        G = (G_2@R_red.T)@(R_red@G_1)
+    else:
+        # Create a square matrix for interpolation from fine space to coarse one
+        # with coarse space seen as a subspace of the fine one
+        G = G_2@G_1
+
     G[np.isclose(G, 0.0)] = 0.0
 
     # Create square matrix of the interpolation on supplementary space of
@@ -80,13 +95,14 @@ def create_interpolation(element_f, element_g):
     eigs, P = np.linalg.eig(N)
     eigs = np.real(eigs)
     P = np.real(P)
-    assert(np.count_nonzero(np.isclose(eigs, 1.0)) == V_f_dim - V_g_dim)
-    assert(np.count_nonzero(np.isclose(eigs, 0.0)) == V_g_dim)
+
+    assert(np.count_nonzero(np.isclose(eigs, 1.0)) == V_f_dim - dim_coarse)
+    assert(np.count_nonzero(np.isclose(eigs, 0.0)) == dim_coarse)
     mask = np.abs(eigs) > 0.5
 
     # Reduce N to get a rectangular matrix in order to reduce the linear system
     # dimensions
     N_red = P[:, mask]
     assert(not np.all(np.iscomplex(N_red)))
-    assert(np.linalg.matrix_rank(N_red) == V_f_dim - V_g_dim)
+    assert(np.linalg.matrix_rank(N_red) == V_f_dim - dim_coarse)
     return N_red

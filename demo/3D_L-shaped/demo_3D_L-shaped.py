@@ -38,20 +38,20 @@ def main():
         with XDMFFile("output/u_exact_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write(u_exact_V)
 
-        eta_bw_v = bw_estimate(u_h, f)
-        with XDMFFile("output/eta_bw_v_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write_checkpoint(eta_bw_v, "eta_bw_v")
+        eta_bw = bw_estimate(u_h, f)
+        with XDMFFile("output/eta_bw_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write_checkpoint(eta_bw, "eta_bw")
 
-        result["error_bw_v"] = np.sqrt(eta_bw_v.vector().sum())
-
+        result["error_bw_v"] = np.sqrt(eta_bw.vector().sum())
+        '''
         eta_bw_m = bw_estimate(u_h, f, dg=k+1, dof_list= [3, 4, 5])
         with XDMFFile("output/eta_bw_m_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write_checkpoint(eta_bw_m, "eta_bw_m")
-
+        
         result["error_bw_m"] = np.sqrt(eta_bw_m.vector().sum())
 
         result['error_bw_mean'] = (1./2.)*(np.sqrt(eta_bw_v.vector().sum()) + np.sqrt(eta_bw_m.vector().sum()))
-
+        '''
         eta_ver = bw_estimate(u_h, f, verf=True)
         with XDMFFile("output/eta_ver_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write_checkpoint(eta_ver, "eta_ver")
@@ -71,7 +71,7 @@ def main():
 
         result["error_res"] = np.sqrt(eta_res.vector().sum())
 
-        V_e = eta_bw_v.function_space()
+        V_e = eta_bw.function_space()
         eta_exact = Function(V_e, name="eta_exact")
         v = TestFunction(V_e)
         eta_exact.vector()[:] = assemble(inner(inner(grad(u_h - u_exact), grad(u_h - u_exact)), v)*dx(mesh))
@@ -83,7 +83,7 @@ def main():
         result["hmax"] = mesh.hmax()
         result["num_dofs"] = V.dim()
 
-        markers = fenics_error_estimation.dorfler(eta_bw_v, 0.5)
+        markers = fenics_error_estimation.dorfler(eta_bw, 0.5)
         mesh = refine(mesh, markers, redistribute=True)
 
         with XDMFFile("output/mesh_{}.xdmf".format(str(i).zfill(4))) as xdmf:
