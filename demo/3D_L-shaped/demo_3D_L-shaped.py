@@ -23,7 +23,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 16):
+    for i in range(0, 6):
         result = {}
         
         u_exact, f = pbm_data(mesh)
@@ -42,7 +42,7 @@ def main():
         with XDMFFile("output/eta_bw_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write_checkpoint(eta_bw, "eta_bw")
 
-        result["error_bw_v"] = np.sqrt(eta_bw.vector().sum())
+        result["error_bw"] = np.sqrt(eta_bw.vector().sum())
         '''
         eta_bw_m = bw_estimate(u_h, f, dg=k+1, dof_list= [3, 4, 5])
         with XDMFFile("output/eta_bw_m_{}.xdmf".format(str(i).zfill(4))) as xdmf:
@@ -51,20 +51,21 @@ def main():
         result["error_bw_m"] = np.sqrt(eta_bw_m.vector().sum())
 
         result['error_bw_mean'] = (1./2.)*(np.sqrt(eta_bw_v.vector().sum()) + np.sqrt(eta_bw_m.vector().sum()))
-        '''
+
         eta_ver = bw_estimate(u_h, f, verf=True)
         with XDMFFile("output/eta_ver_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write_checkpoint(eta_ver, "eta_ver")
 
         result["error_ver"] = np.sqrt(eta_ver.vector().sum())
-
+        '''
+        '''
         if k == 1:
             eta_zz = zz_estimate(u_h, f)
             with XDMFFile("output/eta_zz_{}.xdmf".format(str(i).zfill(4))) as xdmf:
                 xdmf.write_checkpoint(eta_zz, "eta_zz")
 
             result["error_zz"] = np.sqrt(eta_zz.vector().sum())
-
+        '''
         eta_res = residual_estimate(u_h, f)
         with XDMFFile("output/eta_res_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write_checkpoint(eta_res, "eta_res")
@@ -120,12 +121,12 @@ def bw_estimate(u_h, f, df=k+1, dg=k, verf=False, dof_list=None):
     mesh = u_h.function_space().mesh()
 
     if verf:
-        element_f = FiniteElement('Bubble', triangle, 3)\
-                    + FiniteElement('DG', triangle, 2)
-        element_g = FiniteElement('DG', triangle, 1)
+        element_f = FiniteElement('Bubble', tetrahedron, 3)\
+                    + FiniteElement('DG', tetrahedron, 2)
+        element_g = FiniteElement('DG', tetrahedron, 1)
     else:
-        element_f = FiniteElement("DG", triangle, df)
-        element_g = FiniteElement("DG", triangle, dg)
+        element_f = FiniteElement("DG", tetrahedron, df)
+        element_g = FiniteElement("DG", tetrahedron, dg)
 
     N = fenics_error_estimation.create_interpolation(element_f, element_g, dof_list)
 
