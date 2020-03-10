@@ -13,7 +13,7 @@ geom.boolean_difference([big_box], [corner_box])
 
 mesh = pg.generate_mesh(geom)
 
-meshio.write("./3D_L-shaped.xdmf", meshio.Mesh(
+meshio.write("./mesh.xdmf", meshio.Mesh(
     points=mesh.points,
     cells={"tetra": mesh.cells["tetra"]}))
 
