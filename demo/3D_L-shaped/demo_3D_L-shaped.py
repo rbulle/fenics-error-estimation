@@ -23,7 +23,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 16):
+    for i in range(0, 6):
         result = {}
         
         u_exact, f = pbm_data(mesh)
@@ -42,7 +42,7 @@ def main():
         with XDMFFile("output/eta_bw_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write_checkpoint(eta_bw, "eta_bw")
 
-        result["error_bw_v"] = np.sqrt(eta_bw.vector().sum())
+        result["error_bw"] = np.sqrt(eta_bw.vector().sum())
         '''
         eta_bw_m = bw_estimate(u_h, f, dg=k+1, dof_list= [3, 4, 5])
         with XDMFFile("output/eta_bw_m_{}.xdmf".format(str(i).zfill(4))) as xdmf:
