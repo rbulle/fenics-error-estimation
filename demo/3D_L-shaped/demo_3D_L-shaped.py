@@ -199,7 +199,7 @@ def residual_estimate(u_h, f):
     mesh = u_h.function_space().mesh()
 
     n = FacetNormal(mesh)
-    h_T = CellDiameter(mesh)
+    vol = CellVolume(mesh)
     h_E = FacetArea(mesh)
 
     r = f + div(grad(u_h))
@@ -208,7 +208,7 @@ def residual_estimate(u_h, f):
     V_e = FunctionSpace(mesh, 'DG', 0)
     v_e = TestFunction(V_e)
 
-    R = h_T**2*inner(inner(r,r),v_e)*dx + avg(h_E)*inner(inner(J_h, J_h), avg(v_e))*dS
+    R = vol*inner(inner(r,r),v_e)*dx + avg(h_E)*inner(inner(J_h, J_h), avg(v_e))*dS
 
     # Computation of local error indicator
     V_e = FunctionSpace(mesh, "DG", 0)

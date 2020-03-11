@@ -10,7 +10,7 @@ import fenics_error_estimation
 
 parameters['ghost_mode'] = 'shared_facet'
 
-k = 1
+k = 2
 
 def main():
     mesh = Mesh()
@@ -23,7 +23,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 15):
+    for i in range(0, 16):
         result = {}
         
         u_exact, f = pbm_data(mesh)
@@ -31,18 +31,26 @@ def main():
         u_h = solve(V, u_exact, f)
         with XDMFFile("output/u_h_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write(u_h)
-        result['error'] = assemble(inner(grad(u_exact - u_h), grad(u_exact - u_h))*dx)
+        result['error'] = sqrt(assemble(inner(grad(u_exact - u_h), grad(u_exact - u_h))*dx))
 
         u_exact_V = project(u_exact, u_h.function_space())
         u_exact_V.rename("u_exact_V", "u_exact_V")
         with XDMFFile("output/u_exact_{}.xdmf".format(str(i).zfill(4))) as xdmf:
             xdmf.write(u_exact_V)
 
-        eta_bw = bw_estimate(u_h, f)
-        with XDMFFile("output/eta_bw_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write_checkpoint(eta_bw, "eta_bw")
+        eta_bw_v = bw_estimate(u_h, f, dg=k+1, dof_list=[0, 1, 2, 3, 4])
+        with XDMFFile("output/eta_bw_v_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write_checkpoint(eta_bw_v, "eta_bw_v")
 
-        result["error_bw"] = np.sqrt(eta_bw.vector().sum())
+        result["error_bw_v"] = np.sqrt(eta_bw_v.vector().sum())
+
+        eta_bw_m = bw_estimate(u_h, f, dg=k+1, dof_list= [5, 6, 7, 8, 9])
+        with XDMFFile("output/eta_bw_m_{}.xdmf".format(str(i).zfill(4))) as xdmf:
+            xdmf.write_checkpoint(eta_bw_m, "eta_bw_m")
+
+        result["error_bw_m"] = np.sqrt(eta_bw_m.vector().sum())
+
+        result['error_bw_mean'] = (1./2.)*(np.sqrt(eta_bw_v.vector().sum()) + np.sqrt(eta_bw_m.vector().sum()))
 
         eta_ver = bw_estimate(u_h, f, verf=True)
         with XDMFFile("output/eta_ver_{}.xdmf".format(str(i).zfill(4))) as xdmf:
@@ -63,7 +71,7 @@ def main():
 
         result["error_res"] = np.sqrt(eta_res.vector().sum())
 
-        V_e = eta_bw.function_space()
+        V_e = eta_bw_v.function_space()
         eta_exact = Function(V_e, name="eta_exact")
         v = TestFunction(V_e)
         eta_exact.vector()[:] = assemble(inner(inner(grad(u_h - u_exact), grad(u_h - u_exact)), v)*dx(mesh))
@@ -75,7 +83,7 @@ def main():
         result["hmax"] = mesh.hmax()
         result["num_dofs"] = V.dim()
 
-        markers = fenics_error_estimation.dorfler(eta_bw, 0.5)
+        markers = fenics_error_estimation.dorfler(eta_bw_v, 0.5)
         mesh = refine(mesh, markers, redistribute=True)
 
         with XDMFFile("output/mesh_{}.xdmf".format(str(i).zfill(4))) as xdmf:
@@ -108,7 +116,7 @@ def solve(V, u_exact, f):
 
     return u_h
 
-def bw_estimate(u_h, f, verf=False):
+def bw_estimate(u_h, f, df=k+1, dg=k, verf=False, dof_list=None):
     mesh = u_h.function_space().mesh()
 
     if verf:
@@ -116,10 +124,10 @@ def bw_estimate(u_h, f, verf=False):
                     + FiniteElement('DG', triangle, 2)
         element_g = FiniteElement('DG', triangle, 1)
     else:
-        element_f = FiniteElement("DG", triangle, k + 1)
-        element_g = FiniteElement("DG", triangle, k)
+        element_f = FiniteElement("DG", triangle, df)
+        element_g = FiniteElement("DG", triangle, dg)
 
-    N = fenics_error_estimation.create_interpolation(element_f, element_g)
+    N = fenics_error_estimation.create_interpolation(element_f, element_g, dof_list)
 
     V_f = FunctionSpace(mesh, element_f)
 
