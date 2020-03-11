@@ -8,7 +8,9 @@ import ufl
 
 import fenics_error_estimation
 
-parameters['ghost_mode'] = 'shared_facet'
+parameters["ghost_mode"] = "shared_facet"
+parameters["form_compiler"]["optimize"] = True
+parameters["form_compiler"]["cpp_optimize"] = True
 
 k = 1
 
@@ -23,7 +25,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 6):
+    for i in range(0, 5):
         result = {}
         
         u_exact, f = pbm_data(mesh)
@@ -112,7 +114,20 @@ def solve(V, u_exact, f):
     A, b = assemble_system(a, L, bcs=bcs)
 
     u_h = Function(V, name='u_h')
-    solver = PETScLUSolver('mumps')
+    PETScOptions.set("ksp_type", "cg")
+    PETScOptions.set("ksp_rtol", 1E-10)
+    PETScOptions.set("ksp_monitor_true_residual")
+    PETScOptions.set("pc_type", "hypre")
+    PETScOptions.set("pc_hypre_type", "boomeramg")
+    PETScOptions.set("pc_hypre_boomeramg_strong_threshold", 0.5)
+    PETScOptions.set("pc_hypre_boomeramg_coarsen_type", "HMIS")
+    PETScOptions.set("pc_hypre_boomeramg_agg_nl", 4)
+    PETScOptions.set("pc_hypre_boomeramg_agg_num_paths", 2)
+    PETScOptions.set("pc_hypre_boomeramg_interp_type", "ext+i")
+    PETScOptions.set("pc_hypre_boomeramg_truncfactor", 0.35)
+    PETScOptions.set("ksp_view")
+    solver = PETScKrylovSolver()
+    solver.set_from_options()
     solver.solve(A, u_h.vector(), b)
 
     return u_h
@@ -231,6 +246,7 @@ def pbm_data(mesh):
     # Data
     f = Constant(0.)
     return u_exact, f
+
 if __name__ == "__main__":
     main()
 
