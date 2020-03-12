@@ -13,110 +13,66 @@ parameters['ghost_mode'] = 'shared_facet'
 k = 3
 
 def main():
-    mesh = Mesh()
+    init_mesh = Mesh()
     try:
         with XDMFFile(MPI.comm_world, 'mesh.xdmf') as f:
-            f.read(mesh)
+            f.read(init_mesh)
     except:
         print(
             'Generate the mesh using `python3 generate_mesh.py` before running this script.')
         exit()
 
-    results = []
-    for i in range(0, 16):
-        result = {}
-        
-        u_exact, f = pbm_data(mesh)
-        V = FunctionSpace(mesh, "CG", k)
-        u_h = solve(V, u_exact, f)
-        with XDMFFile("output/u_h_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write(u_h)
-        result['error'] = sqrt(assemble(inner(grad(u_exact - u_h), grad(u_exact - u_h))*dx))
+    results = {}
+    if k == 1:
+        names = ['bw', 'ver', 'zz', 'res', 'exact']
+        estimators = [bw_estimate, ver_estimate, zz_estimate, res_estimate, exact_estimate]
+    else:
+        names = ['bw', 'ver', 'res', 'exact']
+        estimators = [bw_estimate, ver_estimate, res_estimate, exact_estimate]
 
-        u_exact_V = project(u_exact, u_h.function_space())
-        u_exact_V.rename("u_exact_V", "u_exact_V")
-        with XDMFFile("output/u_exact_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write(u_exact_V)
-
-        eta_bw_v = bw_estimate(u_h, f, df=k+1, dg=k-1)
-        with XDMFFile("output/eta_bw_v_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write_checkpoint(eta_bw_v, "eta_bw_v")
-
-        result["error_bw_v"] = np.sqrt(eta_bw_v.vector().sum())
-
-        eta_bw_m = bw_estimate(u_h, f, df=k+1, dg=k+1, dof_list=[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
-        with XDMFFile("output/eta_bw_m_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write_checkpoint(eta_bw_m, "eta_bw_m")
-
-        result["error_bw_m"] = np.sqrt(eta_bw_m.vector().sum())
-
-        result['error_bw_mean'] = (1./2.)*(np.sqrt(eta_bw_v.vector().sum()) + np.sqrt(eta_bw_m.vector().sum()))
-
-        eta_ver = bw_estimate(u_h, f, verf=True)
-        with XDMFFile("output/eta_ver_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write_checkpoint(eta_ver, "eta_ver")
-
-        result["error_ver"] = np.sqrt(eta_ver.vector().sum())
-
-        if k == 1:
-            eta_zz = zz_estimate(u_h, f)
-            with XDMFFile("output/eta_zz_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-                xdmf.write_checkpoint(eta_zz, "eta_zz")
-
-            result["error_zz"] = np.sqrt(eta_zz.vector().sum())
-
-        eta_res = residual_estimate(u_h, f)
-        with XDMFFile("output/eta_res_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write_checkpoint(eta_res, "eta_res")
-
-        result["error_res"] = np.sqrt(eta_res.vector().sum())
-
-        V_e = eta_bw_v.function_space()
-        eta_exact = Function(V_e, name="eta_exact")
-        v = TestFunction(V_e)
-        eta_exact.vector()[:] = assemble(inner(inner(grad(u_h - u_exact), grad(u_h - u_exact)), v)*dx(mesh))
-        result["error_exact"] = np.sqrt(eta_exact.vector().sum())
-        with XDMFFile("output/eta_exact_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write(eta_exact)
-
-        result["hmin"] = mesh.hmin()
-        result["hmax"] = mesh.hmax()
-        result["num_dofs"] = V.dim()
-
-        markers = fenics_error_estimation.dorfler(eta_bw_v, 0.5)
-        mesh = refine(mesh, markers, redistribute=True)
-
-        with XDMFFile("output/mesh_{}.xdmf".format(str(i).zfill(4))) as xdmf:
-            xdmf.write(mesh)
-
-        results.append(result)
-
+    for name, estimator in zip(names, estimators):
+        print('{} estimation...'.format(name))
+        result, dofs, error = refinement_loop(init_mesh, name, estimator, results)
+        results['dofs_{}'.format(name)] = dofs
+        results['{}'.format(name)] = result
+        results['{}_exact_error'.format(name)] = error
+    
     if (MPI.comm_world.rank == 0):
         df = pd.DataFrame(results)
         df.to_pickle("output/results.pkl")
         print(df)
 
-def solve(V, u_exact, f):
-    u = TrialFunction(V)
-    v = TestFunction(V)
+def refinement_loop(mesh, name, estimator, results):
+    result = []
+    error = []
+    dofs = []
+    for i in range(0, 20):
+        u_exact, f = pbm_data(mesh)
+        V = FunctionSpace(mesh, "CG", k)
+        u_h = solve(V, u_exact, f)
+        with XDMFFile("output/{}/u_h_{}.xdmf".format(name, str(i).zfill(4))) as xdmf:
+            xdmf.write(u_h)
 
-    a = inner(grad(u), grad(v))*dx
-    L = inner(f, v)*dx
+        eta = estimator(u_h, f, u_exact=u_exact)
+        with XDMFFile("output/{}/eta_{}.xdmf".format(name, str(i).zfill(4))) as xdmf:
+            xdmf.write_checkpoint(eta, "eta_{}".format(name))
 
-    def all_boundary(x, on_boundary):
-        return on_boundary
+        result.append(np.sqrt(eta.vector().sum()))
+        dofs.append(V.dim())
 
-    bcs = DirichletBC(V, u_exact ,all_boundary)
+        exact_err = exact_estimate(u_h, f, u_exact=u_exact)
 
-    A, b = assemble_system(a, L, bcs=bcs)
+        error.append(np.sqrt(exact_err.vector().sum()))
 
-    u_h = Function(V, name='u_h')
-    solver = PETScLUSolver('mumps')
-    solver.solve(A, u_h.vector(), b)
+        markers = fenics_error_estimation.dorfler(eta, 0.5)
+        mesh = refine(mesh, markers, redistribute=True)
 
-    return u_h
+        with XDMFFile("output/{}/mesh_{}.xdmf".format(name, str(i).zfill(4))) as xdmf:
+            xdmf.write(mesh)
 
-def bw_estimate(u_h, f, df=k+1, dg=k, verf=False, dof_list=None):
+    return result, dofs, error
+
+def bw_estimate(u_h, f, u_exact= None, df=k+1, dg=k, verf=False, dof_list=None):
     mesh = u_h.function_space().mesh()
 
     if verf:
@@ -153,7 +109,11 @@ def bw_estimate(u_h, f, df=k+1, dg=k, verf=False, dof_list=None):
     eta_h.vector()[:] = eta
     return eta_h
 
-def zz_estimate(u_h, f):
+def ver_estimate(u_h, f, u_exact=None):
+    eta_h = bw_estimate(u_h, f, verf=True)
+    return eta_h
+
+def zz_estimate(u_h, f, u_exact=None):
     mesh = u_h.function_space().mesh()
     k = u_h.ufl_element().degree()
 
@@ -194,7 +154,7 @@ def zz_estimate(u_h, f):
     eta_h.vector()[:] = eta
     return eta_h
 
-def residual_estimate(u_h, f):
+def res_estimate(u_h, f, u_exact=None):
     mesh = u_h.function_space().mesh()
 
     n = FacetNormal(mesh)
@@ -217,19 +177,47 @@ def residual_estimate(u_h, f):
     eta_h.vector()[:] = eta
     return eta_h
 
+def exact_estimate(u_h, f, u_exact=None):
+    mesh = u_h.function_space().mesh()
+    V_e = FunctionSpace(mesh, "DG", 0)
+    eta_exact = Function(V_e, name="eta_exact")
+    v = TestFunction(V_e)
+    eta_exact.vector()[:] = assemble(inner(inner(grad(u_h - u_exact), grad(u_h - u_exact)), v)*dx(mesh))
+    return eta_exact
+
+def solve(V, u_exact, f):
+    u = TrialFunction(V)
+    v = TestFunction(V)
+
+    a = inner(grad(u), grad(v))*dx
+    L = inner(f, v)*dx
+
+    def all_boundary(x, on_boundary):
+        return on_boundary
+
+    bcs = DirichletBC(V, u_exact ,all_boundary)
+
+    A, b = assemble_system(a, L, bcs=bcs)
+
+    u_h = Function(V, name='u_h')
+    solver = PETScLUSolver('mumps')
+    solver.solve(A, u_h.vector(), b)
+
+    return u_h
+
 def pbm_data(mesh):
     # Exact solution
     x = ufl.SpatialCoordinate(mesh)
 
-    r = ufl.sqrt(x[0]**2 + x[1]**2)
-    theta = ufl.mathfunctions.Atan2(x[1], x[0])
-
     # Exact solution
-    u_exact = r**(2./3.)*ufl.sin((2./3.)*(theta+ufl.pi/2.))
+    alpha = 1000
+    m = [0.25, 0.5]
+    u_exact = ufl.exp(-alpha*((x[0]-m[0])**2+(x[1]-m[1])**2))
 
     # Data
-    f = Constant(0.)
+    f = - ufl.div(ufl.grad(u_exact))
     return u_exact, f
+
 if __name__ == "__main__":
     main()
 
