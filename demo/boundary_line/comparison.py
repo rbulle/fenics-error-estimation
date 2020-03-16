@@ -10,7 +10,7 @@ import fenics_error_estimation
 
 parameters['ghost_mode'] = 'shared_facet'
 
-k = 2
+k = 3
 
 def main():
     K = 15

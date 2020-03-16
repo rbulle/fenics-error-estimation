@@ -4,7 +4,7 @@ import matplotlib.gridspec as gr
 import pandas as pd
 from mpltools import annotation
 
-k = 2
+k = 3
 
 if k == 1:
     ncol = 3
@@ -84,8 +84,8 @@ for name, color, name_ltx in zip(names, colors, names_ltx):
 try:
     marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['ver'].values, df_bw['res'].values, df_bw['zz'].values, df_bw['exact'].values, df_bw["bw"].values], 1.4, 0.18)
 except:
-    marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['ver'].values, df_bw['res'].values, df_bw['exact'].values, df_bw["bw"].values], 1.4, 0.18)
-
+    marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['ver'].values, df_bw['res'].values, df_bw['exact'].values, df_bw["bw"].values], 1.4, 0.4)
+plt.scatter(marker_x, marker_y*0.5, alpha=0)
 annotation.slope_marker((marker_x, marker_y), (-k, 2), invert=True)
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
            ncol=ncol, mode="expand", borderaxespad=0.)
@@ -112,7 +112,7 @@ plt.xlabel('Refinement steps')
 plt.ylabel('Efficiencies')
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
            ncol=ncol, mode="expand", borderaxespad=0.)
-plt.yticks(np.arange(0, ymax, 2.0))
+plt.yticks(np.arange(0, ymax, 5.0))
 plt.savefig('output/efficiencies.pdf')
 
 
@@ -168,7 +168,8 @@ for i, name, name_ltx in zip(np.arange(len(names)), names, names_ltx):
         if i == 2:
             marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 1.5, -0.8)
         else:
-            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 1.3, 0.15)
+            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 1.3, 0.25)
+        ax[i].scatter(marker_x, marker_y*0.8, alpha=0)
         annotation.slope_marker((marker_x, marker_y), (np.round(-k, 1), 2), invert=True, ax=ax[i])
 
 

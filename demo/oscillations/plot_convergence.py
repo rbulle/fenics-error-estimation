@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from mpltools import annotation
 
-k = 1
+k = 2
 
 if k == 1:
     ncol = 3
@@ -46,6 +46,11 @@ print('Results:\n')
 print(df_bw)
 
 x = np.log(df_bw['num_dofs'].values[-5:])
+y = np.log(df_bw['error_bw'].values[-5:])
+A = np.vstack([x, np.ones(len(x))]).T
+m, c = np.linalg.lstsq(A, y)[0]
+print('BW slope =', m)
+
 y = np.log(df_bw['error_bw_mean'].values[-5:])
 A = np.vstack([x, np.ones(len(x))]).T
 m, c = np.linalg.lstsq(A, y)[0]
@@ -89,11 +94,11 @@ plt.loglog(df_bw["num_dofs"], df_bw['error_res'], '^-',
 plt.loglog(df_bw["num_dofs"], df_bw['error_ver'], '^-',
            label=r"$\eta_{\mathrm{ver}}$", color=dark_map[2])
 
-plt.loglog(df_bw["num_dofs"], df_bw['error_bw_mean'], '^-',
+plt.loglog(df_bw["num_dofs"], df_bw['error_bw'], '^-',
            label=r"$\eta_{\mathrm{bw}}$", color=dark_map[0])
-plt.loglog(df_bw["num_dofs"], df_bw['error_eta_mean'], '^-',
-           label="eta mean", color=dark_map[0])
 
+plt.loglog(df_bw["num_dofs"], df_bw['error_bw_mean'], '^-',
+           label=r"$\eta_{\mathrm{bw}}$ (mean)", color=dark_map[3])
 try:
     plt.loglog(df_bw["num_dofs"], df_bw['error_zz'], '^-',
             label=r"$\eta_{\mathrm{zz}}$", color=dark_map[1])
@@ -107,9 +112,9 @@ plt.xlabel("Number of dof")
 plt.ylabel("$\eta$")
 
 try:
-    marker_x, marker_y = marker(df_bw["num_dofs"].values, [df_bw['error_ver'].values, df_bw['error_res'].values, df_bw['error_zz'].values, df_bw['error_exact'].values, df_bw["error_bw_mean"].values, df_bw["error_res"].values], 0.4, 0.1)
+    marker_x, marker_y = marker(df_bw["num_dofs"].values, [df_bw['error_ver'].values, df_bw['error_res'].values, df_bw['error_zz'].values, df_bw['error_exact'].values, df_bw["error_bw"].values, df_bw["error_res"].values], 0.4, 0.1)
 except:
-    marker_x, marker_y = marker(df_bw["num_dofs"].values, [df_bw['error_ver'].values, df_bw['error_res'].values, df_bw['error_exact'].values, df_bw["error_bw_mean"].values, df_bw["error_res"].values], 0.4, 0.1)
+    marker_x, marker_y = marker(df_bw["num_dofs"].values, [df_bw['error_ver'].values, df_bw['error_res'].values, df_bw['error_exact'].values, df_bw["error_bw"].values, df_bw["error_res"].values], 0.4, 0.1)
 
 annotation.slope_marker((marker_x, marker_y), (-k, 2), invert=True)
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
@@ -119,7 +124,8 @@ plt.savefig('output/error.pdf')
 
 plt.figure()
 steps = np.arange(len(df_bw['num_dofs'].values))
-bw_eff = np.divide(df_bw['error_bw_mean'].values, df_bw['error_exact'].values)
+bw_eff = np.divide(df_bw['error_bw'].values, df_bw['error_exact'].values)
+bw_mean_eff = np.divide(df_bw['error_bw_mean'].values, df_bw['error_exact'].values)
 ver_eff = np.divide(df_bw['error_ver'].values, df_bw['error_exact'].values)
 res_eff = np.divide(df_bw['error_res'].values, df_bw['error_exact'].values)
 try:
@@ -138,6 +144,7 @@ except:
 plt.plot(steps, res_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{res}}}$", color=dark_map[6])
 plt.plot(steps, ver_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{ver}}}$", color=dark_map[2])
 plt.plot(steps, bw_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{bw}}}$", color=dark_map[0])
+plt.plot(steps, bw_mean_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{bw}}}$ (mean)", color=dark_map[3])
 try:
     plt.plot(steps, zz_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{res}}}$", color=dark_map[1])
 except:
