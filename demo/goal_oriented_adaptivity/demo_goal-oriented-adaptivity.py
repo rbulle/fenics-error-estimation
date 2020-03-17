@@ -2,14 +2,19 @@ import numpy as np
 
 from dolfin import *
 import ufl
+import pandas as pd
+import ufl
 
 import bank_weiser
+
 
 with open("exact_solution.h", "r") as f:
     u_exact_code = f.read()
 
 k = 1
+
 u_exact = CompiledExpression(compile_cpp_code(u_exact_code).Exact(), degree=5)
+
 
 def main():
     mesh = Mesh()
@@ -20,19 +25,22 @@ def main():
         print("Generate the mesh using `python3 generate_mesh.py` before running this script.")
         exit()
 
-
-    for i in range(0, 8):
+    results = []
+    J_fine = 0.20102294072692303
+    for i in range(0, 15):
+        print('Step {}'.format(i))
+        result = {}
         V = FunctionSpace(mesh, "CG", k)
         u_h = primal_solve(V)
         with XDMFFile("output/u_h_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(u_h)
 
         J_h = assemble(J(u_h))
-
+        '''
         V_f = FunctionSpace(mesh, "CG", 3)
         u_exact_V_f = interpolate(u_exact, V_f)
         J_exact = assemble(J(u_exact_V_f))
-
+        '''
         z_h = dual_solve(u_h)
         with XDMFFile("output/z_h_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(z_h)
@@ -51,10 +59,26 @@ def main():
 
         markers = mark(eta_hw, 0.1)
 
+        error_hu = np.sqrt(eta_hu.vector().sum())
+        error_hz = np.sqrt(eta_hz.vector().sum())
+
+        result["J_h"] = J_h
+        result["error"] = np.abs(J_h - J_fine)
+        result["error_hu"] = error_hu
+        result["error_hz"] = error_hz
+        result["error_hw"] = error_hu*error_hz
+        result["hmin"] = mesh.hmin()
+        result["hmax"] = mesh.hmax()
+        result["num_dofs"] = V.dim()
         mesh = refine(mesh, markers)
 
         with XDMFFile("output/mesh_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(mesh)
+        results.append(result)
+
+    df = pd.DataFrame(results)
+    df.to_pickle("output/results.pkl")
+    print(df)
 
 def primal_solve(V):
     u = TrialFunction(V)
@@ -80,14 +104,15 @@ def primal_solve(V):
 
 def J(v):
     eps_f = 0.35
-    centre = 0.2
+    centre_x = 0.2
+    centre_y = 0.2
     cpp_f = """
-    ((x[0] - centre)/eps_f)*((x[0] - centre)/eps_f) + ((x[1] - centre)/eps_f)*((x[1] - centre)/eps_f) < 1.0 ? 
+    ((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f) < 1.0 ? 
     (1.0)*pow(eps_f, -2.0)*
-    exp(-1.0/(1.0 - (((x[0] - centre)/eps_f)*((x[0] - centre)/eps_f) + ((x[1] - centre)/eps_f)*((x[1] - centre)/eps_f)))) :
+    exp(-1.0/(1.0 - (((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f)))) :
     0.0"""
-
-    c = Expression(cpp_f, eps_f=eps_f, centre=centre, degree=3)
+ 
+    c = Expression(cpp_f, eps_f=eps_f, centre_x=centre_x, centre_y=centre_y, degree=3)
     J = inner(c, v)*dx
 
     return J
