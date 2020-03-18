@@ -1,0 +1,24 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: jhale/fenics-error-estimation
+    working_directory: /home/fenics/working
+
+    steps:
+      - checkout
+
+      - run:
+          name: Build and install FEniCS-EE
+          command: python3 setup.py develop --user
+
+      - run:
+          name: Run unit tests
+          command: python3 -m pytest -v --junitxml=~/junit/test-results.xml test/
+
+      - run:
+          name: Run demos
+          command: python3 -m pytest -v --junitxml=~/junit/demo-results.xml demo/
+
+      - store_test_results:
+          path: ~/junit/

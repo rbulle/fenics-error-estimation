@@ -1,32 +1,41 @@
+## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
+## SPDX-License-Identifier: LGPL-3.0-or-later
+import os
+
 import numpy as np
+import pandas as pd
 
 from dolfin import *
 import ufl
 import pandas as pd
 import ufl
 
-import bank_weiser
+import fenics_error_estimation
 
-
-with open("exact_solution.h", "r") as f:
+current_dir = os.path.dirname(os.path.realpath(__file__))
+with open(os.path.join(current_dir, "exact_solution.h"), "r") as f:
     u_exact_code = f.read()
+
+parameters["ghost_mode"] = "shared_facet"
 
 k = 1
 
 u_exact = CompiledExpression(compile_cpp_code(u_exact_code).Exact(), degree=5)
 
+# Calculated using P3 on a very fine adapted mesh, good to ~10 s.f.
+J_fine = 0.20102294072692303
 
 def main():
     mesh = Mesh()
     try:
-        with XDMFFile(MPI.comm_world, 'mesh.xdmf') as f:
+        with XDMFFile(MPI.comm_world, os.path.join(current_dir, 'mesh.xdmf')) as f:
             f.read(mesh)
     except:
-        print("Generate the mesh using `python3 generate_mesh.py` before running this script.")
+        print(
+            "Generate the mesh using `python3 generate_mesh.py` before running this script.")
         exit()
 
     results = []
-    J_fine = 0.20102294072692303
     for i in range(0, 15):
         print('Step {}'.format(i))
         result = {}
@@ -36,11 +45,13 @@ def main():
             f.write(u_h)
 
         J_h = assemble(J(u_h))
+
         '''
         V_f = FunctionSpace(mesh, "CG", 3)
         u_exact_V_f = interpolate(u_exact, V_f)
         J_exact = assemble(J(u_exact_V_f))
         '''
+        
         z_h = dual_solve(u_h)
         with XDMFFile("output/z_h_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(z_h)
@@ -53,11 +64,22 @@ def main():
         with XDMFFile("output/eta_hz_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(eta_hz)
 
-        eta_hw = weighted_estimator(eta_hu, eta_hz)
+        eta_hw = fenics_error_estimation.weighted_estimate(eta_hu, eta_hz)
         with XDMFFile("output/eta_hw_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(eta_hw)
 
-        markers = mark(eta_hw, 0.1)
+        markers = fenics_error_estimation.dorfler(eta_hw, 0.4)
+        error_hu = np.sqrt(eta_hu.vector().sum())
+        error_hz = np.sqrt(eta_hz.vector().sum())
+
+        result["J_h"] = J_h
+        result["error"] = np.abs(J_h - J_fine)
+        result["error_hu"] = error_hu
+        result["error_hz"] = error_hz
+        result["error_hw"] = error_hu*error_hz
+        result["hmin"] = mesh.hmin()
+        result["hmax"] = mesh.hmax()
+        result["num_dofs"] = V.dim()
 
         error_hu = np.sqrt(eta_hu.vector().sum())
         error_hz = np.sqrt(eta_hz.vector().sum())
@@ -80,6 +102,13 @@ def main():
     df.to_pickle("output/results.pkl")
     print(df)
 
+    results.append(result)
+
+    df = pd.DataFrame(results)
+    df.to_pickle("output/results.pkl")
+    print(df)
+
+
 def primal_solve(V):
     u = TrialFunction(V)
     v = TestFunction(V)
@@ -97,10 +126,11 @@ def primal_solve(V):
     A, b = assemble_system(a, L, bcs=bcs)
 
     u_h = Function(V, name="u_h")
-    solver = PETScLUSolver()
+    solver = PETScLUSolver("mumps")
     solver.solve(A, u_h.vector(), b)
 
     return u_h
+
 
 def J(v):
     eps_f = 0.35
@@ -111,11 +141,12 @@ def J(v):
     (1.0)*pow(eps_f, -2.0)*
     exp(-1.0/(1.0 - (((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f)))) :
     0.0"""
- 
+    
     c = Expression(cpp_f, eps_f=eps_f, centre_x=centre_x, centre_y=centre_y, degree=3)
     J = inner(c, v)*dx
 
     return J
+
 
 def dual_solve(u_h):
     V = u_h.function_space()
@@ -134,18 +165,21 @@ def dual_solve(u_h):
     A, b = assemble_system(a, J_v, bcs=bc)
 
     z_h = Function(V, name="z_h")
-    solver = PETScLUSolver()
+    solver = PETScLUSolver("mumps")
     solver.solve(A, z_h.vector(), b)
 
     return z_h
 
+
 def estimate(u_h):
     mesh = u_h.function_space().mesh()
 
-    V_f = FunctionSpace(mesh, "DG", k + 1)
-    V_g = FunctionSpace(mesh, "DG", k)
+    element_f = FiniteElement("DG", triangle, k + 1)
+    element_g = FiniteElement("DG", triangle, k)
 
-    N = bank_weiser.local_interpolation_to_V0(V_f, V_g)
+    N = fenics_error_estimation.create_interpolation(element_f, element_g)
+
+    V_f = FunctionSpace(mesh, element_f)
 
     e = TrialFunction(V_f)
     v = TestFunction(V_f)
@@ -160,9 +194,9 @@ def estimate(u_h):
     n = FacetNormal(mesh)
     a_e = inner(grad(e), grad(v))*dx
     L_e = inner(f + div(grad(u_h)), v)*dx + \
-          inner(jump(grad(u_h), -n), avg(v))*dS
+        inner(jump(grad(u_h), -n), avg(v))*dS
 
-    e_h = bank_weiser.estimate(a_e, L_e, N, bcs)
+    e_h = fenics_error_estimation.estimate(a_e, L_e, N, bcs)
     error = norm(e_h, "H10")
 
     # Computation of local error indicator
@@ -175,38 +209,9 @@ def estimate(u_h):
 
     return eta_h
 
-def weighted_estimator(eta_uh, eta_zh):
-    eta_uh_vec = eta_uh.vector()
-    eta_zh_vec = eta_zh.vector()
-
-    sum_eta_uh = eta_uh_vec.sum()
-    sum_eta_zh = eta_zh_vec.sum()
-
-    eta_wh = Function(eta_uh.function_space(), name="eta")
-    eta_wh.vector()[:] = ((sum_eta_zh/(sum_eta_uh + sum_eta_zh))*eta_uh_vec) + \
-                         ((sum_eta_uh/(sum_eta_uh + sum_eta_zh))*eta_zh_vec)
-
-    return eta_wh
-
-def mark(eta_h, alpha):
-    etas = eta_h.vector().get_local()
-    indices = etas.argsort()[::-1]
-    sorted = etas[indices]
-
-    total = sum(sorted)
-    fraction = alpha*total
-
-    mesh = eta_h.function_space().mesh()
-    markers = MeshFunction("bool", mesh, mesh.geometry().dim(), False)
-
-    v = 0.0
-    for i in indices:
-        if v >= fraction:
-            break
-        markers[int(i)] = True
-        v += sorted[i]
-
-    return markers
-
 if __name__ == "__main__":
+    main()
+
+
+def test():
     main()

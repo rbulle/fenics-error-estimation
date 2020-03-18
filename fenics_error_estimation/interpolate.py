@@ -1,15 +1,37 @@
+## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
+## SPDX-License-Identifier: LGPL-3.0-or-later
 import numpy as np
+import scipy.linalg as sp
 from dolfin import *
 
-def local_interpolation_to_V0(V_f_global, V_g_global):
-    gdim = V_f_global.mesh().geometry().dim()
+def create_interpolation(element_f, element_g):
+    """Construct a projection operator.
+
+    Given local nodal finite element spaces V_f (element_f) and V_g (element_g)
+    construct an operator N that takes functions V_f to the special space V_f
+    with L v_T = 0, where L is the Lagrangian (nodal) interpolant between V_f
+    and V_g.
+    """
+    gdim = element_f.cell().geometric_dimension()
 
     if gdim == 1:
-        mesh = UnitIntervalMesh(1)
+        mesh = UnitIntervalMesh(MPI.comm_self, 1)
     elif gdim == 2:
-        mesh = UnitTriangleMesh.create()
+        mesh = Mesh(MPI.comm_self)
+        editor = MeshEditor()
+        editor.open(mesh, "triangle", 2, 2)
+
+        editor.init_vertices(3)
+        editor.init_cells(1)
+
+        editor.add_vertex(0, np.array([0.0, 0.0]))
+        editor.add_vertex(1, np.array([1.0, 0.0]))
+        editor.add_vertex(2, np.array([0.0, 1.0]))
+        editor.add_cell(0, np.array([0, 1, 2], dtype=np.uintp))
+
+        editor.close()
     elif gdim == 3:
-        mesh = Mesh()
+        mesh = Mesh(MPI.comm_self)
         editor = MeshEditor()
         editor.open(mesh, "tetrahedron", 3, 3)
 
@@ -29,8 +51,8 @@ def local_interpolation_to_V0(V_f_global, V_g_global):
     assert(mesh.ordered())
     assert(mesh.num_cells() == 1)
 
-    V_f = FunctionSpace(mesh, V_f_global.ufl_element())
-    V_g = FunctionSpace(mesh, V_g_global.ufl_element())
+    V_f = FunctionSpace(mesh, element_f)
+    V_g = FunctionSpace(mesh, element_g)
 
     V_f_dim = V_f.dim()
     V_g_dim = V_g.dim()
@@ -56,6 +78,8 @@ def local_interpolation_to_V0(V_f_global, V_g_global):
 
     # Change of basis to reduce N as a diagonal with only ones and zeros
     eigs, P = np.linalg.eig(N)
+    eigs = np.real(eigs)
+    P = np.real(P)
     assert(np.count_nonzero(np.isclose(eigs, 1.0)) == V_f_dim - V_g_dim)
     assert(np.count_nonzero(np.isclose(eigs, 0.0)) == V_g_dim)
     mask = np.abs(eigs) > 0.5
@@ -65,5 +89,4 @@ def local_interpolation_to_V0(V_f_global, V_g_global):
     N_red = P[:, mask]
     assert(not np.all(np.iscomplex(N_red)))
     assert(np.linalg.matrix_rank(N_red) == V_f_dim - V_g_dim)
-
     return N_red

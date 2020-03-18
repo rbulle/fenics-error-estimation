@@ -1,6 +1,5 @@
 // Copyright 2015 - 2018, Jack S. Hale.
 // SPDX-License-Identifier: LGPL-3.0-or-later
-
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/eigen.h>
@@ -21,11 +20,11 @@ namespace py = pybind11;
 
 using namespace dolfin;
 
-void estimate(dolfin::Function& e,
-              const dolfin::Form& a,
-              const dolfin::Form& L,
-              const py::EigenDRef<const Eigen::MatrixXd> N,
-              const std::vector<std::shared_ptr<const DirichletBC>> bcs)
+void projected_local_solver(dolfin::Function& e,
+                            const dolfin::Form& a,
+                            const dolfin::Form& L,
+                            const py::EigenDRef<const Eigen::MatrixXd> N,
+                            const std::vector<std::shared_ptr<const DirichletBC>> bcs)
 {
     // TODO: More dolfin_assert.
     // Boiler plate setup.
@@ -34,16 +33,15 @@ void estimate(dolfin::Function& e,
     UFC L_ufc(L);
 
     // TODO: Check size of N wrt to compatibility with a and L.
-
     typedef std::vector<std::shared_ptr<const GenericFunction>> coefficient_t;
     const coefficient_t coefficients_a = a.coefficients();
     const coefficient_t coefficients_L = L.coefficients();
 
     // Local element tensors, solver.
     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
-                Eigen::RowMajor> A_e, A_e_0, b_e, b_e_0, x_e, x_e_0;
-    Eigen::LLT<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
-                             Eigen::RowMajor>> cholesky;
+                Eigen::RowMajor> A_e, A_e_0, b_e, b_e_0, x_e, x_e_0, NT;
+    Eigen::FullPivLU<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
+                             Eigen::RowMajor>> solver;
 
     // To store global error result.
     //auto e = std::make_shared<Function>(L.function_space(0));
@@ -76,6 +74,8 @@ void estimate(dolfin::Function& e,
 
     A_e.resize(dofs_a0.size(), dofs_a1.size());
     b_e.resize(dofs_L.size(), 1);
+
+    NT = N.transpose().eval();
 
     for (CellIterator cell(*mesh); !cell.end(); ++cell)
     {
@@ -121,15 +121,15 @@ void estimate(dolfin::Function& e,
         }
 
         // Apply projection to V_0.
-        A_e_0 = N.transpose()*A_e*N;
-        b_e_0 = N.transpose()*b_e;
+        A_e_0.noalias() = NT*A_e*N;
+        b_e_0.noalias() = NT*b_e;
 
         // Solve
-        cholesky.compute(A_e_0);
-        x_e_0 = cholesky.solve(b_e_0);
+        solver.compute(A_e_0);
+        x_e_0 = solver.solve(b_e_0);
 
         // Apply projection back to V_f.
-        x_e = N*x_e_0;
+        x_e.noalias() = N*x_e_0;
 
         // Insert into vector of Function.
         e_vector->add_local(x_e.data(), dofs); 
@@ -139,5 +139,5 @@ void estimate(dolfin::Function& e,
 
 PYBIND11_MODULE(cpp, m)
 {
-    m.def("estimate", &estimate, "Compute Bank-Weiser estimator");
+    m.def("projected_local_solver", &projected_local_solver, "Local solves on projected finite element space");
 }
