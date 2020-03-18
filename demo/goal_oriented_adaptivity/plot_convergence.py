@@ -5,14 +5,27 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from mpltools import annotation
 
+def marker(x_data, y_datas, position, gap):
+    middle = np.floor(len(x_data)/2.).astype(int)
+    anchor_1_1 = []
+    anchor_2_1 = []
 
-def marker(coefficients, anchors_x, anchors_y):
-    marker_x = np.power(anchors_x[0], coefficients[0])\
-        * np.power(anchors_x[1], 1.-coefficients[0])
-    marker_y = np.power(anchors_y[0], coefficients[1])\
-        * np.power(anchors_y[1], 1.-coefficients[1])
+    for data in y_datas:
+        anchor_1_1.append(data[middle])
+        anchor_2_1.append(data[-1])
+    anchor_1_1 = min(anchor_1_1)
+    anchor_2_1 = min(anchor_2_1)
+
+    anchor_1_0 = x_data[middle]
+    anchor_2_0 = x_data[-1]
+
+    anchor_1 = [anchor_1_0, anchor_1_1]
+    anchor_2 = [anchor_2_0, anchor_2_1]
+    marker_x = anchor_1[0]**position*anchor_2[0]**(1.-position)\
+             *(anchor_2[1]/anchor_1[1])**gap
+    marker_y = anchor_1[1]**position*anchor_2[1]**(1.-position)\
+             *(anchor_1[0]/anchor_2[0])**gap
     return marker_x, marker_y
-
 
 import matplotlib.cm as cm
 dark_map = [cm.get_cmap('Dark2')(i/8.) for i in range(8)]
@@ -37,9 +50,9 @@ plt.loglog(df["num_dofs"], df["error"], '^--',
            label=r"$\eta_{e}$", color=dark_map[0])
 plt.xlabel("Number of dofs")
 plt.ylabel("$\eta$")
-marker_x, marker_y = marker([0.5, 0.2], [df["num_dofs"].median(), df["num_dofs"].tail(1).item()], [df["error_hw"].median(), df["error_hw"].tail(1).item()])
+marker_x, marker_y = marker(df["num_dofs"].values, [df["num_dofs"].values, df["error_hw"].values, df["error"].values], 0.4, 0.1)
 annotation.slope_marker((marker_x, marker_y), (-1, 1), invert=True)
-marker_x, marker_y = marker([0.5, 0.2], [df["num_dofs"].median(), df["num_dofs"].tail(1).item()], [df["error_hz"].median(), df["error_hz"].tail(1).item()])
+marker_x, marker_y = marker(df["num_dofs"].values, [df["num_dofs"].values, df["error_hu"].values, df["error_hz"].values], 0.4, 0.15)
 annotation.slope_marker((marker_x, marker_y), (-0.5, 1), invert=True)
 plt.legend(loc=(1.04,0.25))
 plt.savefig("output/error.pdf")

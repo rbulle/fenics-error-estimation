@@ -20,7 +20,7 @@ k = 1
 u_exact = CompiledExpression(compile_cpp_code(u_exact_code).Exact(), degree=5)
 
 # Calculated using P3 on a very fine adapted mesh, good to ~10 s.f.
-J_fine = 0.2010229183
+J_fine = 0.20102294072692303
 
 def main():
     mesh = Mesh()
@@ -33,7 +33,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 7):
+    for i in range(0, 15):
         result = {}
         V = FunctionSpace(mesh, "CG", k)
         u_h = primal_solve(V)
@@ -82,7 +82,10 @@ def main():
             f.write(mesh)
 
         results.append(result)
-
+    
+    with XDMFFile('fine_mesh.xdmf') as f:
+            f.write(mesh)
+    
     df = pd.DataFrame(results)
     df.to_pickle("output/results.pkl")
     print(df)
@@ -122,6 +125,7 @@ def J(v):
     0.0"""
 
     c = Expression(cpp_f, eps_f=eps_f, centre_x=centre_x, centre_y=centre_y, degree=3)
+
     J = inner(c, v)*dx
 
     return J
@@ -176,7 +180,6 @@ def estimate(u_h):
         inner(jump(grad(u_h), -n), avg(v))*dS
 
     e_h = fenics_error_estimation.estimate(a_e, L_e, N, bcs)
-    error = norm(e_h, "H10")
 
     # Computation of local error indicator
     V_e = FunctionSpace(mesh, "DG", 0)
