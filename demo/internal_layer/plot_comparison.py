@@ -4,7 +4,7 @@ import matplotlib.gridspec as gr
 import pandas as pd
 from mpltools import annotation
 
-k = 3
+k = 1
 
 if k == 1:
     ncol = 3
@@ -57,7 +57,7 @@ else:
 
 height = 3.50394/1.608
 width = 3.50394
-plt.rcParams.update({'font.size': 8})
+plt.rcParams.update({'font.size': 7.5})
 plt.rcParams.update({'lines.markersize': 5})
 plt.rcParams.update({'figure.figsize': [width, height]})
 plt.rcParams.update({'figure.autolayout': True})
@@ -112,7 +112,7 @@ plt.xlabel('Refinement steps')
 plt.ylabel('Efficiencies')
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
            ncol=ncol, mode="expand", borderaxespad=0.)
-plt.yticks(np.arange(0, ymax, 2.0))
+plt.yticks(np.arange(0, ymax, 3.0))
 plt.savefig('output/efficiencies.pdf')
 
 
@@ -166,9 +166,9 @@ for i, name, name_ltx in zip(np.arange(len(names)), names, names_ltx):
         ax[i].tick_params(axis='x', which='both', labelsize=3.5)
 
         if i == 1:
-            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 0.3, 0.2)
+            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 0.5, 0.12)
         else:
-            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 0.4, 0.12)
+            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 0.5, 0.12)
         annotation.slope_marker((marker_x, marker_y), (np.round(-k, 1), 2), invert=True, ax=ax[i])
 
 

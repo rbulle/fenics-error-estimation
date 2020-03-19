@@ -165,10 +165,10 @@ for i, name, name_ltx in zip(np.arange(len(names)), names, names_ltx):
         ax[i].set_ylabel(r'$\eta$', labelpad=1)
         ax[i].tick_params(axis='x', which='both', labelsize=3.5)
 
-        if i == 1:
-            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 0.3, 0.2)
+        if i == 2:
+            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 0.3, 0.05)
         else:
-            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 0.2, 0.01)
+            marker_x, marker_y = marker(df_bw["dofs_exact"].values, [df_bw['{}'.format(name)].values, df_bw['{}_exact_error'.format(name)].values], 0.3, 0.18)
         annotation.slope_marker((marker_x, marker_y), (np.round(-k, 1), 2), invert=True, ax=ax[i])
 
 

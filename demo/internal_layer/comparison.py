@@ -10,7 +10,7 @@ import fenics_error_estimation
 
 parameters['ghost_mode'] = 'shared_facet'
 
-k = 3
+k = 1
 
 def main():
     init_mesh = Mesh()

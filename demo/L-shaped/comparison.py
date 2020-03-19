@@ -46,7 +46,8 @@ def refinement_loop(mesh, name, estimator, results):
     result = []
     error = []
     dofs = []
-    for i in range(0, 20):
+    for i in range(0, 25):
+        print('Step {}'.format(i))
         u_exact, f = pbm_data(mesh)
         V = FunctionSpace(mesh, "CG", k)
         u_h = solve(V, u_exact, f)
