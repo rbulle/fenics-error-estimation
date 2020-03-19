@@ -87,18 +87,14 @@ def create_interpolation(element_f, element_g, dof_list=None):
 
     G[np.isclose(G, 0.0)] = 0.0
 
-    # Create square matrix of the interpolation on supplementary space of
-    # coarse space into fine space
-    N = np.eye(V_f.dim()) - G
-
     # Change of basis to reduce N as a diagonal with only ones and zeros
-    eigs, P = np.linalg.eig(N)
+    eigs, P = np.linalg.eig(G)
     eigs = np.real(eigs)
     P = np.real(P)
 
-    assert(np.count_nonzero(np.isclose(eigs, 1.0)) == V_f_dim - dim_coarse)
-    assert(np.count_nonzero(np.isclose(eigs, 0.0)) == dim_coarse)
-    mask = np.abs(eigs) > 0.5
+    assert(np.count_nonzero(np.isclose(eigs, 0.0)) == V_f_dim - dim_coarse)
+    assert(np.count_nonzero(np.isclose(eigs, 1.0)) == dim_coarse)
+    mask = np.abs(eigs) < 0.5
 
     # Reduce N to get a rectangular matrix in order to reduce the linear system
     # dimensions
