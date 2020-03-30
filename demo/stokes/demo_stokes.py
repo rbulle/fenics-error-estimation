@@ -192,29 +192,29 @@ def estimate(w_h):
 
     e_h = fenics_error_estimation.estimate(a_X_e, L_X_e, N_X, bcs)
 
-    M_element_f = FiniteElement('DG', triangle, 2)
-    M_element_g = FiniteElement('DG', triangle, 1)
+    # M_element_f = FiniteElement('DG', triangle, 2)
+    # M_element_g = FiniteElement('DG', triangle, 1)
 
-    N_M = create_interpolation(
-        M_element_f, M_element_g)
+    # N_M = create_interpolation(
+    #    M_element_f, M_element_g)
 
-    M_f = FunctionSpace(mesh, M_element_f)
+    # M_f = FunctionSpace(mesh, M_element_f)
 
-    p_M_f = TrialFunction(M_f)
-    q_M_f = TestFunction(M_f)
+    # p_M_f = TrialFunction(M_f)
+    # q_M_f = TestFunction(M_f)
 
-    a_M_e = inner(p_M_f, q_M_f)*dx
+    # a_M_e = inner(p_M_f, q_M_f)*dx
     r_T = div(u_h)
-    L_M_e = inner(r_T, q_M_f)*dx
+    # L_M_e = inner(r_T, q_M_f)*dx
 
-    eps_h = fenics_error_estimation.estimate(a_M_e, L_M_e, N_M)
+    # eps_h = fenics_error_estimation.estimate(a_M_e, L_M_e, N_M)
 
     V_e = FunctionSpace(mesh, 'DG', 0)
     v = TestFunction(V_e)
 
     eta_h = Function(V_e)
     eta = assemble(inner(inner(grad(e_h), grad(e_h)), v)
-                   * dx + inner(inner(eps_h, eps_h), v)*dx)
+                   * dx + inner(inner(r_T, r_T), v)*dx)
     eta_h.vector()[:] = eta
 
     return eta_h
