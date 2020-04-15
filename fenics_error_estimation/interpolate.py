@@ -76,8 +76,8 @@ def create_interpolation(element_f, element_g, dof_list=None):
         # Create a square matrix for interpolation from fine space to coarse
         # one with coarse space seen as a subspace of the fine one, the coarse
         # space being defined according to prescribed dof list
-        R = np.eye(V_g.dim())
-        new_list = np.setdiff1d(np.arange(V_g.dim()), dof_list)
+        R = np.eye(dim_coarse)
+        new_list = np.setdiff1d(np.arange(dim_coarse), dof_list)
         R_red = np.delete(R, new_list, 0)
         G = (G_2@R_red.T)@(R_red@G_1)
     else:
@@ -91,14 +91,15 @@ def create_interpolation(element_f, element_g, dof_list=None):
     eigs, P = np.linalg.eig(G)
     eigs = np.real(eigs)
     P = np.real(P)
-
+    
     assert(np.count_nonzero(np.isclose(eigs, 0.0)) == V_f_dim - dim_coarse)
     assert(np.count_nonzero(np.isclose(eigs, 1.0)) == dim_coarse)
     mask = np.abs(eigs) < 0.5
-
+    
     # Reduce N to get a rectangular matrix in order to reduce the linear system
     # dimensions
     N_red = P[:, mask]
+    print('N_red =', N_red)
     assert(not np.all(np.iscomplex(N_red)))
     assert(np.linalg.matrix_rank(N_red) == V_f_dim - dim_coarse)
     return N_red

@@ -33,7 +33,7 @@ def main():
     V_el = MixedElement([X_el, M_el, L_el])
 
     results = []
-    for i in range(0, 10):
+    for i in range(0, 11):
         V = FunctionSpace(mesh, V_el)
 
         result = {}
@@ -59,11 +59,12 @@ def main():
 
         print('Marking...')
         markers = fenics_error_estimation.dorfler(eta, 0.5)
-        print('Refining...')
-        mesh = refine(mesh, markers, redistribute=True)
 
         with XDMFFile('output/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write(mesh)
+
+        print('Refining...')
+        mesh = refine(mesh, markers, redistribute=True)
 
         with XDMFFile('output/velo_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(0), 'u_{}'.format(str(i).zfill(4)))
@@ -76,6 +77,8 @@ def main():
 
         results.append(result)
 
+    with XDMFFile('output/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
+        f.write(mesh)
     if (MPI.comm_world.rank == 0):
         df = pd.DataFrame(results)
         df.to_pickle('output/results.pkl')
@@ -167,7 +170,7 @@ def estimate(w_h):
 
     X_element_f = VectorElement('DG', triangle, 3)
     S_element_f = FiniteElement('DG', triangle, 3)
-    S_element_g = FiniteElement('DG', triangle, 1)
+    S_element_g = FiniteElement('DG', triangle, 2)
 
     N_S = create_interpolation(S_element_f, S_element_g)
     N_X = sp.linalg.block_diag(N_S, N_S)
