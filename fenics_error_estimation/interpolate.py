@@ -99,7 +99,6 @@ def create_interpolation(element_f, element_g, dof_list=None):
     # Reduce N to get a rectangular matrix in order to reduce the linear system
     # dimensions
     N_red = P[:, mask]
-    print('N_red =', N_red)
     assert(not np.all(np.iscomplex(N_red)))
     assert(np.linalg.matrix_rank(N_red) == V_f_dim - dim_coarse)
     return N_red

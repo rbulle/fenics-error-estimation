@@ -170,7 +170,7 @@ def estimate(w_h):
 
     X_element_f = VectorElement('DG', triangle, 3)
     S_element_f = FiniteElement('DG', triangle, 3)
-    S_element_g = FiniteElement('DG', triangle, 2)
+    S_element_g = FiniteElement('DG', triangle, 1)
 
     N_S = create_interpolation(S_element_f, S_element_g)
     N_X = sp.linalg.block_diag(N_S, N_S)

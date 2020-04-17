@@ -59,7 +59,7 @@ plt.rcParams.update({'figure.autolayout': True})
 plt.figure()
 
 plt.loglog(df_bw["num_dofs"], df_bw['error_bw'], '^-',
-           label=r"$\eta_{\mathrm{bw}}$ (P3\P1)", color=dark_map[0])
+           label=r"$\eta_{\mathrm{P}}$", color=dark_map[0])
 
 plt.loglog(df_bw["num_dofs"], df_bw['error_res'], '^-',
            label=r"$\eta_{\mathrm{res}}$", color=dark_map[4])
@@ -84,7 +84,7 @@ res_eff = np.divide(df_bw['error_res'].values, df_bw['exact_error'].values)
 
 print('BW eff:', bw_eff)
 print('Res eff:', res_eff)
-plt.plot(steps, bw_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{bw}}}$", color=dark_map[0])
+plt.plot(steps, bw_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{P}}}$", color=dark_map[0])
 plt.plot(steps, res_eff, '^-', label=r"$\frac{||\nabla(u - u_h)||}{\eta_{\mathrm{res}}}$", color=dark_map[4])
 
 xmin, xmax, ymin, ymax = plt.axis()

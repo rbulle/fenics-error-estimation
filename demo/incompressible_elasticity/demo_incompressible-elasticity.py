@@ -34,7 +34,7 @@ parameters["ghost_mode"] = "shared_facet"
 parameters["form_compiler"]["optimize"] = True
 parameters["form_compiler"]["cpp_optimize"] = True
 
-mu = 100.  # First Lamé coefficien
+mu = 100.  # First Lamé coefficient
 nu = .499    # Poisson ratio
 lmbda = 2.*mu*nu/(1.-2.*nu)  # Second Lamé coefficient
 
@@ -73,11 +73,12 @@ def main():
 
         print('Marking...')
         markers = fenics_error_estimation.dorfler(eta_h, 0.5)
-        print('Refining...')
-        mesh = refine(mesh, markers, redistribute=True)
 
         with XDMFFile('output/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write(mesh)
+
+        print('Refining...')
+        mesh = refine(mesh, markers, redistribute=True)
 
         with XDMFFile('output/disp_{}.xdmf'.format(str(i).zfill(4))) as f:
             f.write_checkpoint(w_h.sub(0), 'u_{}'.format(str(i).zfill(4)))
@@ -90,6 +91,8 @@ def main():
 
         results.append(result)
 
+    with XDMFFile('output/mesh_{}.xdmf'.format(str(i).zfill(4))) as f:
+        f.write(mesh)
     if (MPI.comm_world.rank == 0):
         df = pd.DataFrame(results)
         df.to_pickle('output/results.pkl')
