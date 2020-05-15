@@ -7,6 +7,8 @@ ARG GMSH_VERSION=4.5.1
 RUN apt-get update && \
     pip3 install --no-cache-dir --upgrade pytest && \
     pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install statsmodels && \
+    pip3 install quadpy && \
     apt-get install -y libxcursor-dev \
                        libxft2 \
                        libglu1 \
