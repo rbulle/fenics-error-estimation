@@ -12,7 +12,7 @@ from fenics_error_estimation.estimate import estimate_python
 import pandas as pd
 parameters['ghost_mode'] = 'shared_facet'
 import sys
-sys.setrecursionlimit(10000)
+sys.setrecursionlimit(100000)
 
 p = 1           # FE polynomial order
 
@@ -23,19 +23,23 @@ def main():
         mesh = UnitIntervalMesh(10000)
         mesh.coordinates()[:] *= 2. * np.pi
         x = ufl.SpatialCoordinate(mesh)
-        u_exact = ufl.cos(x[0]/2.)
+        u_exact_init = np.power(2., -alpha) * ufl.sin(2. * x[0])
+        #u_exact = ufl.cos(x[0]/2.)
+        #f_vect = [Constant((1. / np.pi) * (2. * i ** (alpha - 1.)) / (4. * i ** 2. - 1.)) * ufl.sin(i * x[0]) for i in range(1, 5000)]
+        #f_sum = sum(f_vect)
+        #W = FunctionSpace(mesh, 'CG', p+3)
+        #f_fine = customproj(f_sum, W)
         for nk in range(100, 1500, 100):
             result = {}
             mesh = UnitIntervalMesh(nk)
             mesh.coordinates()[:] *= 2.*np.pi
             x = ufl.SpatialCoordinate(mesh)
-            f_vect = [Constant((1./np.pi)*(2.*i**(alpha-1.))/(4.*i**2.-1.))*ufl.sin(i*x[0]) for i in range(1,1000)]
-            f = sum(f_vect)
             g = Expression('-(1./pi)*x[0] + 1.', degree = 1)    # Dirichlet boundary datum
             V = FunctionSpace(mesh, 'CG', p)
             W = FunctionSpace(mesh, 'CG', p+3)
-
-            u_exact_vect = [u_exact(x) for x in W.tabulate_dof_coordinates()]
+            #f = project(f_fine, W)
+            f = ufl.sin(2.*x[0])
+            u_exact_vect = [u_exact_init(x) + g(x) for x in W.tabulate_dof_coordinates()]
             '''
             plt.figure()
             plt.plot(np.ndarray.flatten(W.tabulate_dof_coordinates()), u_exact_vect, label='u_exact')
@@ -183,6 +187,25 @@ def bw_estimate(u_h, f, coefs, df=p + 1, dg=p, verf=False, dof_list=None):
     '''
     return e_h
 
+def customproj(f, V):
+    u = TrialFunction(V)
+    v = TestFunction(V)
+
+    a = inner(u, v)*dx
+    L = inner(f, v)*dx
+    A, b = assemble_system(a, L)
+
+    f_h = Function(V)
+
+    PETScOptions.set("ksp_type", "cg")
+    PETScOptions.set("ksp_rtol", 1E-10)
+    PETScOptions.set("ksp_monitor_true_residual")
+    PETScOptions.set("pc_type", "hypre")
+    PETScOptions.set("pc_hypre_type", "boomeramg")
+    solver = PETScKrylovSolver()
+    solver.set_from_options()
+    solver.solve(A, f_h.vector(), b)
+    return f_h
 
 if __name__ == "__main__":
     main()
