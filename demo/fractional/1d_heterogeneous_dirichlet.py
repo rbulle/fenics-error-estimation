@@ -23,30 +23,33 @@ def main():
         mesh = UnitIntervalMesh(10000)
         mesh.coordinates()[:] *= 2. * np.pi
         x = ufl.SpatialCoordinate(mesh)
-        u_exact_init = np.power(2., -alpha) * ufl.sin(2. * x[0])
-        #u_exact = ufl.cos(x[0]/2.)
-        #f_vect = [Constant((1. / np.pi) * (2. * i ** (alpha - 1.)) / (4. * i ** 2. - 1.)) * ufl.sin(i * x[0]) for i in range(1, 5000)]
-        #f_sum = sum(f_vect)
-        #W = FunctionSpace(mesh, 'CG', p+3)
-        #f_fine = customproj(f_sum, W)
+        #u_exact_init = np.power(2., -alpha) * ufl.sin(2. * x[0])
+        u_exact_init = ufl.cos(x[0]/2.)
+        f_vect = [Constant((1. / np.pi) * (2. * i ** (alpha - 1.)) / (4. * i ** 2. - 1.)) * ufl.sin(i * x[0]) for i in range(1, 5000)]
+        f_sum = sum(f_vect)
+        W = FunctionSpace(mesh, 'CG', p+3)
+        f_fine = customproj(f_sum, W)
+        u_exact_fine = customproj(u_exact_init,W)
         for nk in range(100, 1500, 100):
             result = {}
             mesh = UnitIntervalMesh(nk)
             mesh.coordinates()[:] *= 2.*np.pi
-            x = ufl.SpatialCoordinate(mesh)
+            #x = ufl.SpatialCoordinate(mesh)
             g = Expression('-(1./pi)*x[0] + 1.', degree = 1)    # Dirichlet boundary datum
             V = FunctionSpace(mesh, 'CG', p)
             W = FunctionSpace(mesh, 'CG', p+3)
-            #f = project(f_fine, W)
-            f = ufl.sin(2.*x[0])
-            u_exact_vect = [u_exact_init(x) + g(x) for x in W.tabulate_dof_coordinates()]
+            f = project(f_fine, W)
+            u_exact = project(u_exact_fine,W)
+            #f = ufl.sin(2.*x[0])
             '''
+            u_exact_vect = [u_exact_init(x) for x in W.tabulate_dof_coordinates()]
+
             plt.figure()
             plt.plot(np.ndarray.flatten(W.tabulate_dof_coordinates()), u_exact_vect, label='u_exact')
-            '''
+            
             u_exact = Function(W)
             u_exact.vector()[:] = u_exact_vect
-
+            '''
             u_exp, eta_exp, num_solve_exp = exponential_quadrature(V, f, alpha)
             u_boundary = boundary_problem(V, g)
 
@@ -63,6 +66,7 @@ def main():
             plt.savefig("./heterogeneous_solution.pdf")
             '''
 
+
             result['num dofs'] = V.dim()
             result['error'] = errornorm(u_exact, u, norm_type="L2")
             result['error bw'] = do.norm(eta_exp, norm_type='L2')
@@ -76,7 +80,7 @@ def main():
 def exponential_quadrature(V, f, alpha):
     mesh = V.mesh()
     num_solve = 0
-    k = 0.4  # Size factor for the quadrature subdivision
+    k = 0.3  # Size factor for the quadrature subdivision
 
     M = np.ceil(np.pi ** 2 / (2. * alpha * k ** 2))  # Lower bound quadrature sum
     N = np.ceil(np.pi ** 2 / (4. * (1. - alpha / 2.) * k ** 2))  # Upper bound quadrature sum
