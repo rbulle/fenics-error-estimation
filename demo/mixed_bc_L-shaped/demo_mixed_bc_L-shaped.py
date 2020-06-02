@@ -95,15 +95,27 @@ def solve(V, u_exact, f, g):
     v = TestFunction(V)
 
     a = inner(grad(u), grad(v)) * dx
-    L = inner(f, v) * dx
 
-    class Boundary0(SubDomain):
+    tol = 1E-14
+    class BoundaryN(SubDomain):
         def inside(self, x, on_boundary):
-            return
-    def all_boundary(x, on_boundary):
-        return on_boundary
+            return near(ufl.mathfunctions.Atan2(x[1], x[0]), np.pi, tol)
 
-    bcs = DirichletBC(V, u_exact, all_boundary)
+    class BoundaryD(SubDomain):
+        def inside(self, x, on_boundary):
+            return on_boundary and not near(ufl.mathfunctions.Atan2(x[1], x[0]), np.pi, tol)
+
+    boundaryN = BoundaryN()
+    boundaryD = BoundaryD()
+
+    boundary_marker = MeshFunction('size_t', mesh, 1)
+    boundaryN.mark(boundary_marker, 1)
+
+    dN = Measure('ds', domain=mesh, subdomain_data=boundary_marker)
+
+    L = inner(f, v) * dx + inner(g, v) * dN(1)
+
+    bcs = DirichletBC(V, u_exact, boundaryD)
 
     A, b = assemble_system(a, L, bcs=bcs)
 
@@ -112,7 +124,6 @@ def solve(V, u_exact, f, g):
     solver.solve(A, u_h.vector(), b)
 
     return u_h
-
 
 def bw_estimate(u_h, f, df=k + 1, dg=k, verf=False, dof_list=None):
     mesh = u_h.function_space().mesh()
