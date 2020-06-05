@@ -42,13 +42,13 @@ def estimate_python(a_e, L_e, N, bcs=[]):
 
     # Get boundary dofs in case of Dirichlet boundary conditions
     try:
-        #bc_dofs = bcs[0].get_boundary_values()
+        bc_dofs = bcs[0].get_boundary_values()
 
         # Temporary replacement of get_boundary_values() in 1D
-        first_dof = np.where(np.isclose(V_f.tabulate_dof_coordinates(), min(V_f.tabulate_dof_coordinates())))[0]
-        last_dof = np.where(np.isclose(V_f.tabulate_dof_coordinates(), max(V_f.tabulate_dof_coordinates())))[0]
-        dofs = np.ndarray.flatten(np.array([first_dof, last_dof]))
-        bc_dofs = {dofs[0]: 0., dofs[1]: 0.}
+        #first_dof = np.where(np.isclose(V_f.tabulate_dof_coordinates(), min(V_f.tabulate_dof_coordinates())))[0]
+        #last_dof = np.where(np.isclose(V_f.tabulate_dof_coordinates(), max(V_f.tabulate_dof_coordinates())))[0]
+        #dofs = np.ndarray.flatten(np.array([first_dof, last_dof]))
+        #bc_dofs = {dofs[0]: 0., dofs[1]: 0.}
     except IndexError:
         bc_dofs = []
 

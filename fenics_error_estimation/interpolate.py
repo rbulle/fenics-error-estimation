@@ -55,7 +55,6 @@ def create_interpolation(element_f, element_g, dof_list=None):
     V_g = FunctionSpace(mesh, element_g)
 
     V_f_dim = V_f.dim()
-    V_g_dim = V_g.dim()
 
     if dof_list is None:
         dim_coarse = V_g.dim()
@@ -100,5 +99,7 @@ def create_interpolation(element_f, element_g, dof_list=None):
     # dimensions
     N_red = P[:, mask]
     assert(not np.all(np.iscomplex(N_red)))
+    print('rank(N_red)', np.linalg.matrix_rank(N_red))
+    print('V_f_dim - dim_coarse =', V_f_dim - dim_coarse)
     assert(np.linalg.matrix_rank(N_red) == V_f_dim - dim_coarse)
     return N_red
