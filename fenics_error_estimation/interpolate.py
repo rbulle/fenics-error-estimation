@@ -1,7 +1,8 @@
 ## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
 ## SPDX-License-Identifier: LGPL-3.0-or-later
 import numpy as np
-import scipy.linalg as sp
+import scipy as sp
+from scipy import linalg
 from dolfin import *
 
 def create_interpolation(element_f, element_g, dof_list=None):
@@ -84,22 +85,22 @@ def create_interpolation(element_f, element_g, dof_list=None):
         # with coarse space seen as a subspace of the fine one
         G = G_2@G_1
 
-    G[np.isclose(G, 0.0)] = 0.0
+    #G[np.isclose(G, 0.0)] = 0.0
 
     # Change of basis to reduce N as a diagonal with only ones and zeros
-    eigs, P = np.linalg.eig(G)
-    eigs = np.real(eigs)
-    P = np.real(P)
-    
+    #eigs, P = np.linalg.eig(G)
+    #P, eigs,_ = np.linalg.svd(G)
+    #N_red = sp.linalg.null_space(G)
+    _, eigs, P = linalg.svd(G)
+
     assert(np.count_nonzero(np.isclose(eigs, 0.0)) == V_f_dim - dim_coarse)
-    assert(np.count_nonzero(np.isclose(eigs, 1.0)) == dim_coarse)
-    mask = np.abs(eigs) < 0.5
-    
+    assert(np.count_nonzero(np.logical_not(np.isclose(eigs, 0.0))) == dim_coarse)
+
+    null_mask = np.less(np.abs(eigs), 0.5)
     # Reduce N to get a rectangular matrix in order to reduce the linear system
     # dimensions
-    N_red = P[:, mask]
+    null_space = sp.compress(null_mask, P, axis=0)
+    N_red = sp.transpose(null_space)
     assert(not np.all(np.iscomplex(N_red)))
-    print('rank(N_red)', np.linalg.matrix_rank(N_red))
-    print('V_f_dim - dim_coarse =', V_f_dim - dim_coarse)
     assert(np.linalg.matrix_rank(N_red) == V_f_dim - dim_coarse)
     return N_red
