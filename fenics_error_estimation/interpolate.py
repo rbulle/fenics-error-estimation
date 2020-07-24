@@ -5,7 +5,7 @@ import scipy as sp
 from scipy import linalg
 from dolfin import *
 
-def create_interpolation(element_f, element_g, dof_list=None):
+def create_interpolation(element_f, element_g):
     """Construct a projection operator.
 
     Given local nodal finite element spaces V_f (element_f) and V_g (element_g)
@@ -57,10 +57,7 @@ def create_interpolation(element_f, element_g, dof_list=None):
 
     V_f_dim = V_f.dim()
 
-    if dof_list is None:
-        dim_coarse = V_g.dim()
-    else:
-        dim_coarse = len(dof_list)
+    dim_coarse = V_g.dim()
  
     assert(V_f_dim > dim_coarse)
 
@@ -72,25 +69,11 @@ def create_interpolation(element_f, element_g, dof_list=None):
     # Using "Function" prior to create_transfer_matrix, initialises PETSc for
     # unknown reason...
 
-    if dof_list is not None:
-        # Create a square matrix for interpolation from fine space to coarse
-        # one with coarse space seen as a subspace of the fine one, the coarse
-        # space being defined according to prescribed dof list
-        R = np.eye(dim_coarse)
-        new_list = np.setdiff1d(np.arange(dim_coarse), dof_list)
-        R_red = np.delete(R, new_list, 0)
-        G = (G_2@R_red.T)@(R_red@G_1)
-    else:
-        # Create a square matrix for interpolation from fine space to coarse one
-        # with coarse space seen as a subspace of the fine one
-        G = G_2@G_1
-
-    #G[np.isclose(G, 0.0)] = 0.0
+    # Create a square matrix for interpolation from fine space to coarse one
+    # with coarse space seen as a subspace of the fine one
+    G = G_2@G_1
 
     # Change of basis to reduce N as a diagonal with only ones and zeros
-    #eigs, P = np.linalg.eig(G)
-    #P, eigs,_ = np.linalg.svd(G)
-    #N_red = sp.linalg.null_space(G)
     _, eigs, P = linalg.svd(G)
 
     assert(np.count_nonzero(np.isclose(eigs, 0.0)) == V_f_dim - dim_coarse)
