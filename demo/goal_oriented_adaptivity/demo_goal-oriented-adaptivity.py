@@ -61,11 +61,11 @@ def main():
         with XDMFFile("output/z_h_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(z_h)
 
-        eta_hu = estimate(u_h)
+        eta_hu = estimate(u_h, F=F)
         with XDMFFile("output/eta_hu_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(eta_hu)
 
-        eta_hz = estimate(z_h)
+        eta_hz = estimate(z_h, F=J)
         with XDMFFile("output/eta_hz_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(eta_hz)
 
@@ -97,31 +97,11 @@ def main():
     df.to_pickle("output/results.pkl")
     print(df)
 
-
-def primal_solve(V):
-    """Entirely standard Poisson problem with non-homogeneous boundary
-    conditions."""
-    u = TrialFunction(V)
-    v = TestFunction(V)
-
-    f = Constant(0.0)
-
-    a = inner(grad(u), grad(v))*dx
-    L = inner(f, v)*dx
-
-    def all_boundary(x, on_boundary):
-        return on_boundary
-
-    bcs = DirichletBC(V, u_exact, all_boundary)
-
-    A, b = assemble_system(a, L, bcs=bcs)
-
-    u_h = Function(V, name="u_h")
-    solver = PETScLUSolver("mumps")
-    solver.solve(A, u_h.vector(), b)
-
-    return u_h
-
+def F(v):
+    """Primal problem linear form."""
+    f = Constant(0.)
+    F = inner(f,v)*dx
+    return F
 
 def J(v):
     """Goal functional."""
@@ -139,6 +119,28 @@ def J(v):
 
     return J
 
+def primal_solve(V):
+    """Entirely standard Poisson problem with non-homogeneous boundary
+    conditions."""
+    u = TrialFunction(V)
+    v = TestFunction(V)
+
+    L = F(v)
+
+    a = inner(grad(u), grad(v))*dx
+
+    def all_boundary(x, on_boundary):
+        return on_boundary
+
+    bcs = DirichletBC(V, u_exact, all_boundary)
+
+    A, b = assemble_system(a, L, bcs=bcs)
+
+    u_h = Function(V, name="u_h")
+    solver = PETScLUSolver("mumps")
+    solver.solve(A, u_h.vector(), b)
+
+    return u_h
 
 def dual_solve(u_h):
     """Standard dual solution of Poisson problem (self-adjoint)."""
@@ -163,8 +165,7 @@ def dual_solve(u_h):
 
     return z_h
 
-
-def estimate(u_h):
+def estimate(u_h, F):
     """Identical to other Poisson demos, can be used for both the primal and
     dual problems."""
     mesh = u_h.function_space().mesh()
@@ -179,8 +180,6 @@ def estimate(u_h):
     e = TrialFunction(V_f)
     v = TestFunction(V_f)
 
-    f = Constant(0.0)
-
     def all_boundary(x, on_boundary):
         return on_boundary
 
@@ -188,7 +187,7 @@ def estimate(u_h):
 
     n = FacetNormal(mesh)
     a_e = inner(grad(e), grad(v))*dx
-    L_e = inner(f + div(grad(u_h)), v)*dx + \
+    L_e = F(v) + inner(div(grad(u_h)), v)*dx + \
         inner(jump(grad(u_h), -n), avg(v))*dS
 
     e_h = fenics_error_estimation.estimate(a_e, L_e, N, bcs)
