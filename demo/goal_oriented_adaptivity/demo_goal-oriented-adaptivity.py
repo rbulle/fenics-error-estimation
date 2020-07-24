@@ -17,8 +17,6 @@ import pandas as pd
 
 from dolfin import *
 import ufl
-import pandas as pd
-import ufl
 
 import fenics_error_estimation
 
@@ -29,11 +27,10 @@ with open(os.path.join(current_dir, "exact_solution.h"), "r") as f:
 parameters["ghost_mode"] = "shared_facet"
 
 k = 1
-
 u_exact = CompiledExpression(compile_cpp_code(u_exact_code).Exact(), degree=5)
 
 # Calculated using P3 on a very fine adapted mesh, good to ~10 s.f.
-J_fine = 0.20102294072692303
+J_fine = 0.2010229183
 
 def main():
     mesh = Mesh()
@@ -46,8 +43,7 @@ def main():
         exit()
 
     results = []
-    for i in range(0, 15):
-        print('Step {}'.format(i))
+    for i in range(0, 7):
         result = {}
         V = FunctionSpace(mesh, "CG", k)
         u_h = primal_solve(V)
@@ -56,21 +52,20 @@ def main():
 
         J_h = assemble(J(u_h))
 
-        '''
-        V_f = FunctionSpace(mesh, "CG", 3)
-        u_exact_V_f = interpolate(u_exact, V_f)
-        J_exact = assemble(J(u_exact_V_f))
-        '''
-        
+        #V_f = FunctionSpace(mesh, "CG", 4)
+        #u_exact_V_f = interpolate(u_exact, V_f)
+        #J_exact_V_f = assemble(J(u_exact_V_f))
+        #print(J_exact_V_f)
+
         z_h = dual_solve(u_h)
         with XDMFFile("output/z_h_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(z_h)
 
-        eta_hu = estimate(u_h)
+        eta_hu = estimate(u_h, F=F)
         with XDMFFile("output/eta_hu_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(eta_hu)
 
-        eta_hz = estimate(z_h)
+        eta_hz = estimate(z_h, F=J)
         with XDMFFile("output/eta_hz_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(eta_hz)
 
@@ -91,33 +86,38 @@ def main():
         result["hmax"] = mesh.hmax()
         result["num_dofs"] = V.dim()
 
-        error_hu = np.sqrt(eta_hu.vector().sum())
-        error_hz = np.sqrt(eta_hz.vector().sum())
-
-        result["J_h"] = J_h
-        result["error"] = np.abs(J_h - J_fine)
-        result["error_hu"] = error_hu
-        result["error_hz"] = error_hz
-        result["error_hw"] = error_hu*error_hz
-        result["hmin"] = mesh.hmin()
-        result["hmax"] = mesh.hmax()
-        result["num_dofs"] = V.dim()
         mesh = refine(mesh, markers)
 
         with XDMFFile("output/mesh_{}.xdmf".format(str(i).zfill(4))) as f:
             f.write(mesh)
+
         results.append(result)
 
     df = pd.DataFrame(results)
     df.to_pickle("output/results.pkl")
     print(df)
 
-    results.append(result)
+def F(v):
+    """Primal problem linear form."""
+    f = Constant(0.)
+    F = inner(f,v)*dx
+    return F
 
-    df = pd.DataFrame(results)
-    df.to_pickle("output/results.pkl")
-    print(df)
+def J(v):
+    """Goal functional."""
+    eps_f = 0.35
+    centre_x = 0.2
+    centre_y = 0.2
+    cpp_f = """
+    ((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f) < 1.0 ?
+    (1.0)*pow(eps_f, -2.0)*
+    exp(-1.0/(1.0 - (((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f)))) :
+    0.0"""
 
+    c = Expression(cpp_f, eps_f=eps_f, centre_x=centre_x, centre_y=centre_y, degree=3)
+    J = inner(c, v)*dx
+
+    return J
 
 def primal_solve(V):
     """Entirely standard Poisson problem with non-homogeneous boundary
@@ -125,10 +125,9 @@ def primal_solve(V):
     u = TrialFunction(V)
     v = TestFunction(V)
 
-    f = Constant(0.0)
+    L = F(v)
 
     a = inner(grad(u), grad(v))*dx
-    L = inner(f, v)*dx
 
     def all_boundary(x, on_boundary):
         return on_boundary
@@ -142,24 +141,6 @@ def primal_solve(V):
     solver.solve(A, u_h.vector(), b)
 
     return u_h
-
-
-def J(v):
-    """Goal functional."""
-    eps_f = 0.35
-    centre_x = 0.2
-    centre_y = 0.2
-    cpp_f = """
-    ((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f) < 1.0 ? 
-    (1.0)*pow(eps_f, -2.0)*
-    exp(-1.0/(1.0 - (((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f)))) :
-    0.0"""
-    
-    c = Expression(cpp_f, eps_f=eps_f, centre_x=centre_x, centre_y=centre_y, degree=3)
-    J = inner(c, v)*dx
-
-    return J
-
 
 def dual_solve(u_h):
     """Standard dual solution of Poisson problem (self-adjoint)."""
@@ -184,8 +165,7 @@ def dual_solve(u_h):
 
     return z_h
 
-
-def estimate(u_h):
+def estimate(u_h, F):
     """Identical to other Poisson demos, can be used for both the primal and
     dual problems."""
     mesh = u_h.function_space().mesh()
@@ -200,8 +180,6 @@ def estimate(u_h):
     e = TrialFunction(V_f)
     v = TestFunction(V_f)
 
-    f = Constant(0.0)
-
     def all_boundary(x, on_boundary):
         return on_boundary
 
@@ -209,7 +187,7 @@ def estimate(u_h):
 
     n = FacetNormal(mesh)
     a_e = inner(grad(e), grad(v))*dx
-    L_e = inner(f + div(grad(u_h)), v)*dx + \
+    L_e = F(v) + inner(div(grad(u_h)), v)*dx + \
         inner(jump(grad(u_h), -n), avg(v))*dS
 
     e_h = fenics_error_estimation.estimate(a_e, L_e, N, bcs)
