@@ -109,7 +109,7 @@ def J(v):
     centre_x = 0.2
     centre_y = 0.2
     cpp_f = """
-    ((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f) < 1.0 ?
+    ((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f) < 1.0 ? 
     (1.0)*pow(eps_f, -2.0)*
     exp(-1.0/(1.0 - (((x[0] - centre_x)/eps_f)*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f)))) :
     0.0"""
