@@ -115,7 +115,7 @@ def J(v):
              "(1.0)*pow(eps_f, -2.0)*"
              "exp(-1.0/(1.0 - (((x[0] - centre_x)/eps_f)"
              "*((x[0] - centre_x)/eps_f) + ((x[1] - centre_y)/eps_f)*((x[1] - centre_y)/eps_f))))"
-             "0.0")
+             " : 0.0")
 
     c = Expression(cpp_f, eps_f=eps_f, centre_x=centre_x, centre_y=centre_y, degree=3)
     J = inner(c, v) * dx
