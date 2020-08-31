@@ -62,6 +62,10 @@ def create_interpolation(element_f, element_g):
 
     assert(V_f_dim > V_g_dim)
 
+    # Looks like a no-op but actually required to ensure some internal data
+    # structures are setup.
+    w = Function(V_f)  # noqa: F841
+
     # Get interpolation matrices from fine space to coarse one and conversely
     G_1 = PETScDMCollection.create_transfer_matrix(V_f, V_g).array()
     G_2 = PETScDMCollection.create_transfer_matrix(V_g, V_f).array()
