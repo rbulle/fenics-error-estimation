@@ -1,9 +1,10 @@
-## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
-## SPDX-License-Identifier: LGPL-3.0-or-later
+# Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
+# SPDX-License-Identifier: LGPL-3.0-or-later
 import numpy as np
 import scipy as sp
 from scipy import linalg
 from dolfin import *
+
 
 def create_interpolation(element_f, element_g):
     """Construct a projection operator.
@@ -58,10 +59,8 @@ def create_interpolation(element_f, element_g):
     V_f_dim = V_f.dim()
 
     V_g_dim = V_g.dim()
- 
-    assert(V_f_dim > V_g_dim)
 
-    w = Function(V_f)
+    assert(V_f_dim > V_g_dim)
 
     # Get interpolation matrices from fine space to coarse one and conversely
     G_1 = PETScDMCollection.create_transfer_matrix(V_f, V_g).array()
@@ -71,7 +70,7 @@ def create_interpolation(element_f, element_g):
 
     # Create a square matrix for interpolation from fine space to coarse one
     # with coarse space seen as a subspace of the fine one
-    G = G_2@G_1
+    G = G_2 @ G_1
 
     # Change of basis to reduce N as a diagonal with only ones and zeros
     _, eigs, P = linalg.svd(G)
