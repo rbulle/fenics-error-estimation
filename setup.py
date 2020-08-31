@@ -109,7 +109,7 @@ def run_install():
           package_dir={"fenics_error_estimation": "fenics_error_estimation"},
           ext_modules=[CMakeExtension("fenics_error_estimation.cpp", sourcedir="./fenics_error_estimation/cpp/")],
           cmdclass=dict(build_ext=CMakeBuild),
-          platforms=["Windows", "Linux", "Solaris", "Mac OS-X", "Unix"],
+          platforms=["Linux", "Solaris", "Mac OS-X", "Unix"],
           install_requires=REQUIREMENTS,
           zip_safe=False)
 
