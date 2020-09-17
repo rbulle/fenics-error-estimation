@@ -1,9 +1,10 @@
-## Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
-## SPDX-License-Identifier: LGPL-3.0-or-later
+# Copyright 2019-2020, Jack S. Hale, Raphaël Bulle
+# SPDX-License-Identifier: LGPL-3.0-or-later
 import numpy as np
 import scipy as sp
 from scipy import linalg
 from dolfin import *
+
 
 def create_interpolation(element_f, element_g):
     """Construct a projection operator.
@@ -56,12 +57,13 @@ def create_interpolation(element_f, element_g):
     V_g = FunctionSpace(mesh, element_g)
 
     V_f_dim = V_f.dim()
-
     V_g_dim = V_g.dim()
- 
+
     assert(V_f_dim > V_g_dim)
 
-    w = Function(V_f)
+    # Looks like a no-op but actually required to ensure some internal data
+    # structures are setup.
+    w = Function(V_f)  # noqa: F841
 
     # Get interpolation matrices from fine space to coarse one and conversely
     G_1 = PETScDMCollection.create_transfer_matrix(V_f, V_g).array()
