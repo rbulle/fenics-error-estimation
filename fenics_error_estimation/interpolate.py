@@ -73,12 +73,12 @@ def create_interpolation(element_f, element_g):
 
     # Create a square matrix for interpolation from fine space to coarse one
     # with coarse space seen as a subspace of the fine one
-    G = G_2@G_1
+    G = G_2 @ G_1
 
     # Change of basis to reduce N as a diagonal with only ones and zeros
     _, vals, V = linalg.svd(G)
 
-    eps = 1000.*np.finfo(np.float64).eps
+    eps = 1000. * np.finfo(np.float64).eps
     assert(np.count_nonzero(np.less(vals, eps)) == V_f_dim - V_g_dim)
     assert(np.count_nonzero(np.logical_not(np.less(vals, eps))) == V_g_dim)
 
