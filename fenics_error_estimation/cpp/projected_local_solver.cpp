@@ -1,7 +1,9 @@
 // Copyright 2020, Jack S. Hale, Raphaël Bulle.
 // SPDX-License-Identifier: LGPL-3.0-or-later
 #include <algorithm>
+#include <functional>
 #include <map>
+#include <optional>
 #include <vector>
 
 #include <pybind11/eigen.h>
@@ -22,14 +24,15 @@ using namespace dolfinx;
 
 template <typename T>
 void projected_local_solver(
-    fem::Function<T>& eta_h, fem::Function<T>& e_h, const fem::Form<T>& a, const fem::Form<T>& L,
+    fem::Function<T>& eta_h, const fem::Form<T>& a, const fem::Form<T>& L,
     const fem::Form<T>& L_eta, const fem::FiniteElement& element,
     const fem::ElementDofLayout& element_dof_layout,
     const Eigen::Ref<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
                                          Eigen::RowMajor>>
         N,
     const Eigen::Ref<const Eigen::Array<std::int32_t, Eigen::Dynamic, 1>>
-        entities)
+        entities,
+    std::optional<std::reference_wrapper<fem::Function<T>>> e_h = std::nullopt)
 {
   const auto mesh = a.mesh();
   assert(mesh == L.mesh());
@@ -54,10 +57,8 @@ void projected_local_solver(
       solver;
 
   // Prepare coefficients
-  const dolfinx::array2d<double>
-      a_coeffs = pack_coefficients(a);
-  const dolfinx::array2d<double>
-      L_coeffs = pack_coefficients(L);
+  const dolfinx::array2d<double> a_coeffs = pack_coefficients(a);
+  const dolfinx::array2d<double> L_coeffs = pack_coefficients(L);
 
   const std::vector<int> L_offsets = L.coefficient_offsets();
   std::vector<T> L_coeff_array_macro(2 * L_offsets.back());
@@ -91,8 +92,7 @@ void projected_local_solver(
 
   // FIXME: Add proper interface for num coordinate dofs
   const int num_dofs_g = x_dofmap.num_links(0);
-  const dolfinx::array2d<double>& x_g
-      = mesh->geometry().x();
+  const dolfinx::array2d<double>& x_g = mesh->geometry().x();
   std::vector<double> coordinate_dofs(num_dofs_g * gdim);
   std::vector<double> coordinate_dofs_macro(2 * num_dofs_g * gdim);
 
@@ -103,11 +103,13 @@ void projected_local_solver(
   std::vector<T>& eta = eta_vec->mutable_array();
 
   // dofmap and vector for inserting error solution
-  const graph::AdjacencyList<std::int32_t>& dofmap_e
-      = e_h.function_space()->dofmap()->list();
-  std::shared_ptr<la::Vector<T>> e_vec = e_h.x();
-  std::vector<T>& e = e_vec->mutable_array();
-  
+  std::optional<
+      std::reference_wrapper<const graph::AdjacencyList<std::int32_t>>>
+      dofmap_e = e_h.function_space()->dofmap()->list();
+  std::optional<std::shared_ptr<la::Vector<T>>> e_vec = e_h.x();
+  std::optional<std::reference_wrapper<std::vector<T>>> e
+      = e_vec->mutable_array();
+
   // Iterate over active cells
   const int tdim = mesh->topology().dim();
   const auto map = mesh->topology().index_map(tdim);
@@ -289,10 +291,14 @@ void projected_local_solver(
     const auto dofs_eta = dofmap_eta.links(c);
     eta[dofs_eta[0]] = etae(0);
 
-    const auto dofs_e = dofmap_e.links(c);
-    for (std::size_t i = 0; i < dofs_e.size(); ++i) {
-      e[dofs_e[i]] = xe(i);
-    } 
+    if (e_h)
+    {
+      const auto dofs_e = dofmap_e.links(c);
+      for (std::size_t i = 0; i < dofs_e.size(); ++i)
+      {
+        e[dofs_e[i]] = xe(i);
+      }
+    }
   }
 }
 
