@@ -3,7 +3,7 @@ import numpy as np
 from dolfin import *
 import fenics_error_estimation
 
-mesh = UnitCubeMesh(24, 24, 24)
+mesh = UnitCubeMesh(96, 96, 96)
 
 k = 1
 V = FunctionSpace(mesh, 'CG', k)
@@ -71,3 +71,12 @@ eta = assemble(inner(inner(grad(e_h), grad(e_h)), v) * dx)
 eta_h.vector()[:] = eta
 
 print('BW estimator =', np.sqrt(sum(eta_h.vector()[:])))
+
+with XDMFFile("output/mesh.xdmf") as of:
+    of.write(mesh)
+
+with XDMFFile("output/u.xdmf") as of:
+    of.write(u_h)
+
+with XDMFFile("output/eta.xdmf") as of:
+    of.write(eta_h)
